@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{# =====================================================================
+   index.html — Pantalla principal: inventario, buscador, carrito,
+   registro de salida, encargos pendientes, notas y log de hoy.
+   ===================================================================== #}
+
+{% block title %}C.D.H.I{% endblock %}
+
+{% block body_class %}pagina-inventario{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/movimientos.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="layout">
+<header>
+    <div class="header-acciones">
+        <span class="usuario-sesion">Sesión: {{ username }}</span>
+        <button type="button" id="btn-descargar-registro" class="btn-logout">Descargar registro de hoy</button>
+        <button type="button" id="btn-descargar-anual" class="btn-logout">Descargar registro anual</button>
+        <button type="button" id="btn-logout" class="btn-logout">Cerrar sesión</button>
+    </div>
+    <div class="titulo-container">
+        <h1 class="Titulo">Control Digitalizado de Herramientas e Insumos (C.D.H.I.)</h1>
+        <model-viewer
+            src="{{ url_for('static', filename='img/LogoT2.gltf') }}"
+            alt="Logo 3D interactivo" auto-rotate rotation-per-second="60deg"
+            camera-controls disable-zoom interaction-prompt="none"
+            orientation="0deg 240deg 0deg" shadow-intensity="3">
+        </model-viewer>
+        <h2>Bienvenido al inventario del pañol</h2>
+    </div>
+</header>
+
+<main>
+    <div class="buscador">
+        <nav>
+            <p>Buscador</p>
+            <input type="text" id="buscador-input" placeholder="Buscar por nombre o tag…" autocomplete="off">
+        </nav>
+    </div>
+
+    <p class="volver"><a href="/gestionar-herramientas" class="btn-link">+ Gestionar herramientas (agregar / editar / borrar)</a></p>
+
+    <div class="grilla-herramientas"></div>
+
+    <aside class="sidebar-salida" id="sidebar-salida">
+        <h2>Registrar salida</h2>
+        <div class="carrito-seleccion" id="carrito-seleccion">
+            <p class="carrito-vacio">Todavía no agregaste herramientas. Usá el botón "Carrito" de cada herramienta de arriba.</p>
+        </div>
+
+        <div class="form-movimiento">
+            <label for="profesor">Profesor (o persona que retira)</label>
+            <input type="text" id="profesor" placeholder="Nombre y apellido">
+
+            <label for="alumno">Alumno *</label>
+            <input type="text" id="alumno" placeholder="Nombre y apellido" required>
+
+            <label for="curso-anio">Curso *</label>
+            <div class="curso-compuesto">
+                <input type="text" id="curso-anio" inputmode="numeric" maxlength="1" placeholder="7" required>
+                <span class="curso-sufijo">mo</span>
+                <input type="text" id="curso-division" inputmode="numeric" maxlength="1" placeholder="2" required>
+                <span class="curso-sufijo">da</span>
+            </div>
+
+            <div class="botones-movimiento">
+                <button type="button" id="btn-salida">Registrar salida</button>
+            </div>
+        </div>
+
+        <div class="encargos-pendientes">
+            <h3>Herramientas afuera</h3>
+            <ul id="lista-encargos">
+                <li class="sin-movimientos">Cargando…</li>
+            </ul>
+        </div>
+
+        <div class="notas-panel">
+            <h3>Notas del pañol</h3>
+            <textarea id="notas-texto" class="notas-texto" placeholder="Recordatorios, avisos, llaves, etc."></textarea>
+            <p id="notas-estado" class="notas-estado"></p>
+            <div class="botones-movimiento">
+                <button type="button" id="btn-guardar-nota">Guardar nota</button>
+            </div>
+        </div>
+    </aside>
+</main>
+</div>
+<footer>
+    <p class="footer-text">Si quiere contactarnos aca tiene el <a class="soporte" href="https://docs.google.com/forms/d/e/1FAIpQLSc9BVkQEahWsJLysncdsHsfpTWjnwJx78rAXLqJEb_gK3iujQ/viewform?usp=header">Soporte</a></p>
+    <p class="footer-text">Desarrollado por los estudiantes: Dana, Larango, Salinas y Bergallo.</p>
+    <p class="footer-text">© 2026 Control Digitalizado de Herramientas e Insumos.</p>
+</footer>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='js/qr-scanner.js') }}"></script>
+<script src="{{ url_for('static', filename='js/herramientas.js') }}"></script>
+<script src="{{ url_for('static', filename='js/movimientos.js') }}"></script>
+<script src="{{ url_for('static', filename='js/notas.js') }}"></script>
+<script src="{{ url_for('static', filename='js/escaneo-carrito.js') }}"></script>
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+<script>
+    // Handlers para botones de descarga: usan fetch para poder
+    // mostrar notificaciones de error en lugar de mostrar JSON crudo.
+    document.addEventListener("DOMContentLoaded", () => {
+        const btnHoy = document.getElementById("btn-descargar-registro");
+        const btnAnual = document.getElementById("btn-descargar-anual");
+
+        function descargarConFetch(url, nombreArchivo) {
+            fetch(url, { credentials: "same-origin" })
+                .then((res) => {
+                    if (!res.ok) return res.json().then((data) => { throw new Error(data.error || "Error al descargar"); });
+                    return res.blob();
+                })
+                .then((blob) => {
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = nombreArchivo;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(a.href);
+                })
+                .catch((err) => {
+                    if (typeof mostrarAlerta === "function") {
+                        mostrarAlerta(err.message, "error");
+                    } else {
+                        alert(err.message);
+                    }
+                });
+        }
+
+        if (btnHoy) {
+            btnHoy.addEventListener("click", () => {
+                const hoy = new Date().toISOString().slice(0, 10);
+                descargarConFetch("/api/movimientos/descargar", `registro-${hoy}.csv`);
+            });
+        }
+        if (btnAnual) {
+            btnAnual.addEventListener("click", () => {
+                const anio = new Date().getFullYear();
+                descargarConFetch("/api/movimientos/descargar-anual", `registro-${anio}.zip`);
+            });
+        }
+    });
+</script>
+{% endblock %}

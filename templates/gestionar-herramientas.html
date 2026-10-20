@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{# =====================================================================
+   gestionar-herramientas.html — ABM del catálogo.
+   El formulario sirve para agregar (POST /api/herramientas)
+   y para editar (PUT /api/herramientas/<id>).
+   ===================================================================== #}
+
+{% block title %}Gestionar herramientas - C.D.H.I.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/movimientos.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/gestionar-herramientas.css') }}">
+{% endblock %}
+
+{% block content %}
+<header>
+    <div class="header-acciones">
+        <span class="usuario-sesion">Sesión: {{ username }}</span>
+        <button type="button" id="btn-logout" class="btn-logout">Cerrar sesión</button>
+    </div>
+    <div class="titulo-container">
+        <h1 class="Titulo">Gestionar herramientas</h1>
+        <h2>Agregar, editar y borrar herramientas del pañol</h2>
+    </div>
+</header>
+
+<p class="volver"><a href="/index" class="btn-link">&larr; Volver al inventario</a></p>
+
+<main>
+    <section class="panel-movimientos">
+        <h2 id="titulo-form">Agregar herramienta</h2>
+
+        <div class="form-movimiento">
+            <label for="h-nombre">Nombre (máximo 25 caracteres)</label>
+            <input type="text" id="h-nombre" placeholder="Ej: Martillo" maxlength="25">
+
+            <label for="h-descripcion">Descripción</label>
+            <input type="text" id="h-descripcion" placeholder="Breve descripción de la herramienta">
+
+            <label for="h-cantidad" id="label-cantidad">Cantidad en stock</label>
+            <input type="number" id="h-cantidad" min="0" value="0">
+
+            <div class="tipo-herramienta-toggle solo-movil" id="tipo-herramienta-toggle">
+                <span class="tipo-herramienta-titulo">Tipo de herramienta</span>
+                <div class="tipo-herramienta-botones">
+                    <button type="button" class="tipo-btn activo" id="btn-tipo-sin-qr" data-tipo="sin-qr">Sin QR</button>
+                    <button type="button" class="tipo-btn" id="btn-tipo-con-qr" data-tipo="con-qr">Con QR (objeto único)</button>
+                </div>
+            </div>
+
+            <div id="seccion-qr" class="seccion-qr" style="display:none;">
+                <p class="qr-ayuda">Es un objeto único: no se controla por cantidad, se controla escaneando su QR.</p>
+                <button type="button" id="btn-escanear-registro" class="btn-escanear-qr-inline">Escanear código QR</button>
+            </div>
+
+            <p id="info-qr-estado" class="qr-estado" style="display:none;"></p>
+
+            <label for="h-imagen-input">Imagen de la herramienta</label>
+            <div class="campo-imagen">
+                <img id="imagen-preview" class="imagen-preview"
+                     src="{{ url_for('static', filename='img/martillo.png') }}"
+                     alt="Vista previa de la imagen">
+                <div class="campo-imagen-controles">
+                    <button type="button" id="btn-elegir-imagen">Elegir imagen…</button>
+                    <span id="imagen-estado" class="imagen-estado">Sin imagen (se usará martillo.png)</span>
+                </div>
+                <input type="file" id="h-imagen-input"
+                       accept="image/png,image/jpeg,image/gif,image/webp"
+                       capture="environment" hidden>
+            </div>
+
+            <label for="h-tags">Tags (separados por coma)</label>
+            <input type="text" id="h-tags" placeholder="Manual, Carpintería">
+
+            <div class="botones-movimiento">
+                <button type="button" id="btn-guardar">Agregar herramienta</button>
+                <button type="button" id="btn-cancelar-edicion" style="display:none;">Cancelar edición</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel-movimientos">
+        <h3>Herramientas cargadas</h3>
+        <ul id="lista-admin-herramientas">
+            <li class="sin-movimientos">Cargando…</li>
+        </ul>
+    </section>
+</main>
+
+<footer>
+    <p class="footer-text">© 2026 Control Digitalizado de Herramientas e Insumos.</p>
+    <p class="footer-text">Desarrollado por los estudiantes: Dana, Larango, Salinas y Bergallo.</p>
+</footer>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='js/qr-scanner.js') }}"></script>
+<script src="{{ url_for('static', filename='js/gestionar-herramientas.js') }}"></script>
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+{% endblock %}

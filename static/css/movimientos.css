@@ -1,0 +1,316 @@
+
+:root {
+    --ancho-sidebar-salida: 380px;
+}
+
+.panel-movimientos {
+    margin: 60px auto 40px;
+    padding: 25px;
+    max-width: 720px;
+    background-color: #000000;
+    border: 3px solid #ff0000;
+    border-radius: 10px;
+    font-family: 'Arial', sans-serif;
+    color: #ffffff;
+}
+
+@media (max-width: 600px) {
+    .panel-movimientos {
+        margin: 30px 12px;
+        padding: 18px;
+    }
+}
+
+.panel-movimientos h2,
+.sidebar-salida h2 {
+    margin-top: 0;
+    text-align: center;
+    color: #ffffff;
+}
+
+.panel-movimientos h3,
+.sidebar-salida h3 {
+    font-size: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #ff0000;
+    border-bottom: 1px solid #800000;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.carrito-seleccion {
+    min-height: 40px;
+    margin-bottom: 20px;
+}
+
+.carrito-vacio,
+.sin-movimientos {
+    color: #cccccc;
+    font-style: italic;
+    font-size: 14px;
+}
+
+.carrito-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background-color: #830000;
+    border: 1px solid #ff0000;
+    border-radius: 10px;
+}
+
+.carrito-item-nombre {
+    font-weight: bold;
+    color: #ffffff;
+    word-break: break-word;
+}
+
+.carrito-item-controles {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.carrito-item-controles button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    margin-top: 0;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.carrito-item-cantidad {
+    min-width: 24px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.carrito-item-controles .carrito-item-quitar {
+    width: auto;
+    font-size: 12px;
+    padding: 4px 10px;
+    margin-top: 0;
+    border-color: #ff0000;
+    color: #ff0000;
+}
+
+.form-movimiento {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 30px;
+}
+
+.form-movimiento label {
+    font-size: 14px;
+    color: #ffffff;
+    margin-top: 10px;
+}
+
+.form-movimiento input[type="text"],
+.form-movimiento input[type="password"],
+.form-movimiento input[type="number"],
+.form-movimiento input[type="tel"],
+.form-movimiento input[type="email"] {
+    outline: 0;
+    border: 1px solid #000000;
+    border-radius: 10px;
+    padding: 10px;
+    /* 16px evita que iOS Safari haga zoom automático
+       al enfocar un input (bug visual en celular). */
+    font-size: 16px;
+    font-family: 'Arial', sans-serif;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-movimiento input[type="text"]:focus,
+.form-movimiento input[type="password"]:focus,
+.form-movimiento input[type="number"]:focus,
+.form-movimiento input[type="tel"]:focus,
+.form-movimiento input[type="email"]:focus {
+    border: 2px solid #ff0000;
+    padding: 9px;
+}
+
+.botones-movimiento {
+    display: flex;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.botones-movimiento button {
+    flex: 1;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 10px;
+    margin-top: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.botones-movimiento button:hover {
+    opacity: 0.7;
+}
+
+#btn-salida {
+    background-color: #f90a0a;
+    color: #000000;
+}
+
+.notas-panel {
+    margin-top: 1.4rem;
+}
+
+.notas-panel h3 {
+    margin: 0 0 0.4rem;
+}
+
+.notas-texto {
+    width: 100%;
+    min-height: 130px;
+    resize: vertical;
+    font: inherit;
+}
+
+.notas-estado {
+    margin: 0.3rem 0;
+    font-size: 0.8rem;
+    opacity: 0.75;
+}
+
+.encargos-pendientes {
+    margin-bottom: 30px;
+}
+
+.encargos-pendientes ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.encargo-pendiente {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    background-color: #1a0000;
+    border: 1px solid #800000;
+    border-radius: 10px;
+}
+
+.encargo-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.encargo-profesor {
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.encargo-herramientas {
+    font-size: 13px;
+    color: #cccccc;
+}
+
+.btn-devuelto {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #ffffff;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 14px;
+    margin-top: 0;
+    white-space: nowrap;
+}
+
+.btn-devuelto:hover {
+    opacity: 0.7;
+}
+
+.btn-devuelto:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.sidebar-salida {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--ancho-sidebar-salida);
+    background-color: #000000;
+    border-left: 3px solid #ff0000;
+    padding: 30px 22px 30px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    z-index: 500;
+}
+
+.sidebar-salida,
+.encargos-pendientes ul {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.sidebar-salida::-webkit-scrollbar,
+.encargos-pendientes ul::-webkit-scrollbar {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .sidebar-salida {
+        position: static;
+        width: auto;
+        height: auto;
+        max-width: 720px;
+        margin: 30px auto 0;
+        border-left: none;
+        border-top: 3px solid #ff0000;
+        padding: 25px;
+    }
+}
+
+.curso-compuesto {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.curso-compuesto input[type="text"] {
+    width: 46px;
+    flex: 0 0 auto;
+    text-align: center;
+    padding: 10px 6px;
+}
+
+.curso-sufijo {
+    font-weight: bold;
+    color: #ffffff;
+    margin-right: 6px;
+}
+
+@media (max-width: 480px) {
+    .botones-movimiento {
+        flex-wrap: wrap;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .botones-movimiento button {
+        transition: none;
+    }
+}

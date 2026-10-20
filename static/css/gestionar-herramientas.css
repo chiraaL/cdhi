@@ -1,0 +1,156 @@
+
+
+.campo-imagen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 15px;
+    margin-top: 6px;
+    padding: 12px;
+    background-color: #1a0000;
+    border: 1px solid #800000;
+    border-radius: 10px;
+}
+
+.imagen-preview {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background-color: #830000;
+    border: 2px solid #ff0000;
+    border-radius: 10px;
+}
+
+.campo-imagen-controles {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+
+.campo-imagen-controles button {
+    width: auto;
+    margin-top: 0;
+    font-size: 14px;
+    padding: 8px 16px;
+}
+
+.campo-imagen-controles button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.imagen-estado {
+    font-size: 12px;
+    color: #cccccc;
+    word-break: break-word;
+}
+
+.solo-movil {
+    display: none;
+}
+
+.tipo-herramienta-toggle {
+    margin-top: 12px;
+}
+
+.tipo-herramienta-titulo {
+    display: block;
+    font-size: 14px;
+    color: #ffffff;
+    margin-bottom: 6px;
+}
+
+.tipo-herramienta-botones {
+    display: flex;
+    gap: 10px;
+}
+
+.tipo-btn {
+    flex: 1;
+    font-size: 14px;
+    padding: 8px;
+    margin-top: 0;
+    background-color: #1a0000;
+    border: 1px solid #800000;
+}
+
+.tipo-btn.activo {
+    background-color: #830000;
+    border-color: #ff0000;
+}
+
+.seccion-qr {
+    margin-top: 10px;
+    padding: 12px;
+    background-color: #1a0000;
+    border: 1px solid #800000;
+    border-radius: 10px;
+}
+
+.qr-ayuda {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #cccccc;
+}
+
+.btn-escanear-qr-inline {
+    width: 100%;
+}
+
+.qr-estado {
+    margin: 10px 0 0;
+    font-size: 13px;
+    color: #cccccc;
+    word-break: break-word;
+}
+
+.qr-reader-zona {
+    width: 100%;
+    max-width: 320px;
+    margin: 15px auto 0;
+    border: 2px solid #ff0000;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+#lista-admin-herramientas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.fila-botones-admin {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.fila-botones-admin button {
+    width: auto;
+    margin-top: 0;
+    font-size: 14px;
+    padding: 8px 14px;
+}
+
+@media (max-width: 480px) {
+    .campo-imagen {
+        justify-content: center;
+        text-align: center;
+    }
+
+    .campo-imagen-controles {
+        align-items: center;
+    }
+}
+
+.btn-confirmar-borrado {
+    background-color: #ff0000;
+    color: #ffffff;
+    border-color: #ffffff;
+    white-space: normal;
+    max-width: 100%;
+    text-align: center;
+}

@@ -1,0 +1,123 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    display: grid;
+    min-height: 100vh;
+    min-height: 100svh;
+    place-items: center;
+    margin: 0;
+    padding: clamp(16px, 4vw, 32px);
+    background-color: #380000;
+    color: #171717;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.login-wrapper {
+    display: grid;
+    width: 100%;
+    place-items: center;
+}
+
+#form-login {
+    display: flex;
+    width: min(100%, 400px);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: clamp(24px, 6vw, 40px);
+    border-radius: 20px;
+    background-color: #ffffff;
+    box-shadow: 0 12px 36px rgb(0 0 0 / 55%);
+}
+
+.login-titulo {
+    margin: 0;
+    color: #380000;
+    font-size: clamp(28px, 7vw, 36px);
+    text-align: center;
+}
+
+.login-subtitulo {
+    margin: 0 0 12px;
+    color: #444444;
+    line-height: 1.5;
+    text-align: center;
+}
+
+#form-login > label {
+    margin-top: 8px;
+    font-weight: 600;
+}
+
+#form-login input[type="text"],
+#form-login input[type="password"] {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #666666;
+    border-radius: 10px;
+    background-color: #ffffff;
+    color: #171717;
+    font: inherit;
+}
+
+#form-login input[type="text"]:focus,
+#form-login input[type="password"]:focus {
+    border-color: #800000;
+}
+
+.box-visible {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 10px;
+}
+
+.box-visible input {
+    width: 18px;
+    height: 18px;
+    accent-color: #800000;
+}
+
+.box-visible label {
+    cursor: pointer;
+}
+
+#form-login button {
+    width: 100%;
+    min-height: 46px;
+    margin-top: 12px;
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 10px;
+    background-color: #f90a0a;
+    color: #000000;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+#form-login button:hover {
+    background-color: #df0000;
+}
+
+#form-login button:active {
+    transform: translateY(1px);
+}
+
+#form-login button:focus-visible,
+#form-login input:focus-visible {
+    outline: 3px solid #800000;
+    outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #form-login button {
+        transition: none;
+    }
+}

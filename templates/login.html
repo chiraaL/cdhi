@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{# =====================================================================
+   login.html — Pantalla de inicio de sesión.
+   Extiende base.html: el <head>, charset, viewport y los scripts
+   comunes se escriben UNA sola vez; esta página solo llena los
+   bloques (title / extra_css / content / extra_js).
+   ===================================================================== #}
+
+{% block title %}Iniciar sesión - C.D.H.I.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="login-wrapper">
+    <form id="form-login" novalidate>
+        <h1 class="login-titulo">C.D.H.I.</h1>
+        <p class="login-subtitulo">Control Digitalizado de Herramientas e Insumos</p>
+
+        <label for="username">Usuario</label>
+        <input type="text" id="username" name="username"
+               placeholder="Usuario" required autocomplete="username">
+
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password"
+               placeholder="Contraseña" required autocomplete="current-password">
+
+        <div class="box-visible">
+            <input type="checkbox" id="visible">
+            <label for="visible">Mostrar contraseña</label>
+        </div>
+
+        <button type="submit" id="submit">Iniciar sesión</button>
+    </form>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/login.js') }}"></script>
+{% endblock %}

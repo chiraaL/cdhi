@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}C.D.H.I{% endblock %}</title>
+
+    {# Jinja2 construye las URLs de los assets con url_for('static', ...):
+       así las rutas son correctas sin importar dónde esté montada
+       la app, y mover la carpeta static/ no requiere tocar nada. #}
+    <link rel="icon" href="{{ url_for('static', filename='img/t2.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/notificaciones.css') }}">
+
+    {% block extra_css %}{% endblock %}
+
+    {# Variables globales para el JS: las rutas de assets e
+       imágenes se leen desde window.APP, en lugar de estar
+       hardcodeadas en cada archivo .js. #}
+    <script>
+        window.APP = {
+            staticUrl: "{{ url_for('static', filename='') }}",
+            username: {{ (session.username | default('') | tojson) | safe }}
+        };
+    </script>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+
+    {# Scripts comunes (notificaciones.js la usan casi todas las páginas) #}
+    <script src="{{ url_for('static', filename='js/notificaciones.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
