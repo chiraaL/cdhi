@@ -212,6 +212,8 @@
 .encargo-info {
     display: flex;
     flex-direction: column;
+    flex: 1 1 180px;
+    min-width: 0;
     gap: 3px;
 }
 
@@ -223,6 +225,7 @@
 .encargo-herramientas {
     font-size: 13px;
     color: #cccccc;
+    overflow-wrap: anywhere;
 }
 
 .btn-devuelto {

@@ -150,16 +150,23 @@ async function cargarEncargosPendientes() {
             const li = document.createElement("li");
             li.className = "encargo-pendiente";
 
-            // Por textContent, no innerHTML: alumno, curso y
-            // lista_herramientas vienen de la base y no deben
-            // interpretarse como HTML (XSS).
             const info = document.createElement("div");
-            const nombreAlumno = document.createElement("strong");
-            nombreAlumno.textContent = enc.alumno;
-            info.append(
-                nombreAlumno,
-                document.createTextNode(` (${enc.curso}) - ${enc.lista_herramientas}`)
-            );
+            info.className = "encargo-info";
+
+            const profesor = document.createElement("div");
+            profesor.className = "encargo-profesor";
+            profesor.textContent = `Profesor: ${enc.profesor || "Sin especificar"}`;
+
+            const alumno = document.createElement("div");
+            alumno.className = "encargo-herramientas";
+            const curso = enc.curso ? ` (${enc.curso})` : "";
+            alumno.textContent = `Alumno: ${enc.alumno || "Sin especificar"}${curso}`;
+
+            const herramientas = document.createElement("div");
+            herramientas.className = "encargo-herramientas";
+            herramientas.textContent = `Herramientas: ${enc.lista_herramientas || "Sin detalle"}`;
+
+            info.append(profesor, alumno, herramientas);
 
             const btnDev = document.createElement("button");
             btnDev.className = "btn-devuelto";
@@ -189,7 +196,7 @@ async function cargarEncargosPendientes() {
                 }
             });
 
-            li.appendChild(btnDev);
+            li.append(info, btnDev);
             lista.appendChild(li);
         });
     } catch (e) {
