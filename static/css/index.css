@@ -159,7 +159,7 @@ model-viewer {
    --------------------------------------------------------------------- */
 .buscador {
     width: 100%;
-    max-width: none;                /* sin límite: centra en todo el ancho disponible como footer */
+    max-width: 720px;               /* ancho máximo razonable, centrado con margin: auto */
     margin: 30px auto 20px;
     padding: 20px 25px;
     background-color: #000000;
