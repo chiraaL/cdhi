@@ -549,7 +549,7 @@ footer {
 }
 
 @media (min-width: 901px) {
-    footer {
+    .pagina-inventario footer {
         width: calc(100% - var(--ancho-sidebar-salida));
     }
 }
