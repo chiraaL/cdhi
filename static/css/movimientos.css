@@ -256,7 +256,19 @@
     padding: 30px 22px 30px;
     overflow-y: auto;
     box-sizing: border-box;
-    z-index: 500;
+    z-index: 1100;  /* por encima del header (z-index: 1000) */
+}
+
+/* Cubrir cualquier gap visual de 1px entre header y sidebar */
+.sidebar-salida::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -2px;
+    bottom: 0;
+    width: 4px;
+    background: #000000;
+    z-index: -1;
 }
 
 .sidebar-salida,
