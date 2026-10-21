@@ -1,10 +1,11 @@
 """
 init_db.py — Crea la base de datos y el esquema en MySQL.
 
-Uso (una sola vez, o para resetear datos de prueba):
+Uso (primera instalación o después de actualizar el esquema):
 
     python init_db.py
 
+La actualización del esquema es idempotente y conserva los datos existentes.
 El esquema se crea con InnoDB (claves foráneas siempre activas) y
 charset utf8mb4. Las columnas es_qr y qr_codigo ya existen desde el
 inicio, y la tabla de notas arranca con su fila fija id=1.
@@ -66,12 +67,14 @@ CREATE TABLE IF NOT EXISTS prestamos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS prestamo_item (
-    id             INT AUTO_INCREMENT PRIMARY KEY,
-    prestamo_id    INT NOT NULL,
-    herramienta_id INT NOT NULL,
-    cantidad       INT NOT NULL,
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    prestamo_id       INT NOT NULL,
+    herramienta_id    INT NULL,
+    herramienta_nombre VARCHAR(100) NOT NULL,
+    cantidad          INT NOT NULL,
     FOREIGN KEY (prestamo_id) REFERENCES prestamos(id) ON DELETE CASCADE,
-    FOREIGN KEY (herramienta_id) REFERENCES herramientas(id)
+    CONSTRAINT fk_prestamo_item_herramienta
+        FOREIGN KEY (herramienta_id) REFERENCES herramientas(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS notas (
@@ -80,6 +83,62 @@ CREATE TABLE IF NOT EXISTS notas (
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
+
+
+def migrar_prestamo_item(cur):
+    """Preserva el nombre de cada herramienta y permite eliminarla del catálogo."""
+    cur.execute("SHOW COLUMNS FROM prestamo_item LIKE 'herramienta_nombre'")
+    if cur.fetchone() is None:
+        cur.execute(
+            "ALTER TABLE prestamo_item "
+            "ADD COLUMN herramienta_nombre VARCHAR(100) NULL"
+        )
+
+    cur.execute(
+        """UPDATE prestamo_item pi
+           JOIN herramientas h ON h.id = pi.herramienta_id
+           SET pi.herramienta_nombre = h.nombre
+           WHERE pi.herramienta_nombre IS NULL"""
+    )
+    cur.execute(
+        "ALTER TABLE prestamo_item "
+        "MODIFY herramienta_nombre VARCHAR(100) NOT NULL"
+    )
+
+    cur.execute(
+        """SELECT k.CONSTRAINT_NAME, r.DELETE_RULE
+           FROM information_schema.KEY_COLUMN_USAGE k
+           JOIN information_schema.REFERENTIAL_CONSTRAINTS r
+             ON r.CONSTRAINT_SCHEMA = k.CONSTRAINT_SCHEMA
+            AND r.TABLE_NAME = k.TABLE_NAME
+            AND r.CONSTRAINT_NAME = k.CONSTRAINT_NAME
+           WHERE k.CONSTRAINT_SCHEMA = %s
+             AND k.TABLE_NAME = 'prestamo_item'
+             AND k.COLUMN_NAME = 'herramienta_id'
+             AND k.REFERENCED_TABLE_NAME = 'herramientas'""",
+        (MYSQL_DB,),
+    )
+    restricciones = cur.fetchall()
+    if len(restricciones) == 1 and restricciones[0][1] == "SET NULL":
+        cur.execute("SHOW COLUMNS FROM prestamo_item LIKE 'herramienta_id'")
+        if cur.fetchone()[0][2] == "YES":
+            return
+
+    for restriccion in restricciones:
+        nombre = restriccion[0].replace("`", "``")
+        cur.execute(
+            f"ALTER TABLE prestamo_item DROP FOREIGN KEY `{nombre}`"
+        )
+
+    cur.execute(
+        "ALTER TABLE prestamo_item MODIFY herramienta_id INT NULL"
+    )
+    cur.execute(
+        """ALTER TABLE prestamo_item
+           ADD CONSTRAINT fk_prestamo_item_herramienta
+           FOREIGN KEY (herramienta_id) REFERENCES herramientas(id)
+           ON DELETE SET NULL"""
+    )
 
 
 def main():
@@ -102,6 +161,8 @@ def main():
 
             for sentencia in [s.strip() for s in ESQUEMA.split(";") if s.strip()]:
                 cur.execute(sentencia)
+
+            migrar_prestamo_item(cur)
 
             # Fila fija del bloc de notas (id siempre = 1)
             cur.execute(

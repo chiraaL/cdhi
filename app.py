@@ -522,24 +522,11 @@ def editar_herramienta(herramienta_id):
 @login_required_api
 def borrar_herramienta(herramienta_id):
     with db() as conn:
-        # No dejar borrar una herramienta con historial: está en
-        # encargos pendientes O en préstamos ya devueltos (si se
-        # borrara, la FK de prestamo_item haría fallar el DELETE
-        # con un 500 y se perdería la trazabilidad del log).
-        referenciada = conn.execute(
-            "SELECT COUNT(*) AS n FROM prestamo_item WHERE herramienta_id = %s",
-            (herramienta_id,),
-        ).fetchone()["n"]
-
-        if referenciada > 0:
-            return jsonify({
-                "error": "No se puede borrar: la herramienta tiene historial de encargos"
-            }), 409
-
         cur = conn.execute("DELETE FROM herramientas WHERE id = %s", (herramienta_id,))
         if cur.rowcount == 0:
             return jsonify({"error": "No existe esa herramienta"}), 404
-        # herramienta_tag se borra solo (ON DELETE CASCADE)
+        # Los tags se borran en cascada; los préstamos conservan el nombre
+        # histórico y la referencia queda NULL por la FK ON DELETE SET NULL.
 
     return jsonify({"ok": True})
 
@@ -597,9 +584,10 @@ def listar_prestamos():
         resultado = []
         for p in prestamos:
             items = conn.execute(
-                """SELECT pi.cantidad, h.nombre
+                """SELECT pi.cantidad,
+                          COALESCE(pi.herramienta_nombre, h.nombre) AS nombre
                    FROM prestamo_item pi
-                   JOIN herramientas h ON h.id = pi.herramienta_id
+                   LEFT JOIN herramientas h ON h.id = pi.herramienta_id
                    WHERE pi.prestamo_id = %s""",
                 (p["id"],),
             ).fetchall()
@@ -708,8 +696,10 @@ def crear_prestamo():
                             "instante justo. Actualizá la página e intentá de nuevo."
                         )
                 conn.execute(
-                    "INSERT INTO prestamo_item (prestamo_id, herramienta_id, cantidad) VALUES (%s, %s, %s)",
-                    (prestamo_id, h["id"], cant),
+                    "INSERT INTO prestamo_item "
+                    "(prestamo_id, herramienta_id, herramienta_nombre, cantidad) "
+                    "VALUES (%s, %s, %s, %s)",
+                    (prestamo_id, h["id"], h["nombre"], cant),
                 )
                 items_log.append((h["id"], h["nombre"], cant))
 
@@ -747,20 +737,23 @@ def devolver_prestamo(prestamo_id):
             h = conn.execute(
                 "SELECT * FROM herramientas WHERE id = %s", (item["herramienta_id"],)
             ).fetchone()
-            if h is None:
-                continue
-            if h["es_qr"]:
-                # Objeto único: vuelve a estar disponible en el pañol.
-                conn.execute(
-                    "UPDATE herramientas SET cantidad = 1 WHERE id = %s",
-                    (h["id"],),
-                )
-            else:
-                conn.execute(
-                    "UPDATE herramientas SET cantidad = cantidad + %s WHERE id = %s",
-                    (item["cantidad"], h["id"]),
-                )
-            items_log.append((h["id"], h["nombre"], item["cantidad"]))
+            if h is not None:
+                if h["es_qr"]:
+                    # Objeto único: vuelve a estar disponible en el pañol.
+                    conn.execute(
+                        "UPDATE herramientas SET cantidad = 1 WHERE id = %s",
+                        (h["id"],),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE herramientas SET cantidad = cantidad + %s WHERE id = %s",
+                        (item["cantidad"], h["id"]),
+                    )
+            items_log.append((
+                item["herramienta_id"],
+                item["herramienta_nombre"],
+                item["cantidad"],
+            ))
 
         conn.execute(
             "UPDATE prestamos SET estado = 'devuelto', fecha_entrada = NOW() WHERE id = %s",
