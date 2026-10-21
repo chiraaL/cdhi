@@ -542,12 +542,7 @@ body.modal-abierto {
 footer {
     background-image: linear-gradient(to top, #800000, #000000);
     color: #ffffff;
-    /* flexbox centrado igual que header (align-items: center) */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
+    text-align: center;
     padding: 10px 0;
     position: static;
     bottom: 0;
