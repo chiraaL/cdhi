@@ -63,7 +63,9 @@ header {
         width: calc(100% - var(--ancho-sidebar-salida));
         /* left-aligned para que su borde derecho coincida con la sidebar */
     }
-    /* footer usa max-width: 720px + margin: auto; no necesita ancho fijo aquí */
+    footer {
+        width: calc(100% - var(--ancho-sidebar-salida));
+    }
 }
 
 .header-acciones {
@@ -541,11 +543,11 @@ footer {
     background-image: linear-gradient(to top, #800000, #000000);
     color: #ffffff;
     text-align: center;
-    padding: 10px 20px;
+    padding: 10px 0;
     position: static;
     bottom: 0;
-    max-width: 720px;                 /* mismo ancho máximo que buscador */
-    margin: 100px auto 0;             /* centrado con margin: auto como buscador */
+    width: 100%;
+    margin-top: 100px;
     box-sizing: border-box;
 }
 
