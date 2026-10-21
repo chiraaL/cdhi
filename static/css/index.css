@@ -63,20 +63,19 @@ header {
         width: calc(100% - var(--ancho-sidebar-salida));
         /* left-aligned para que su borde derecho coincida con la sidebar */
     }
-    footer {
-        width: calc(100% - var(--ancho-sidebar-salida));
-    }
+    /* footer usa max-width: 720px + margin: auto; no necesita ancho fijo aquí */
 }
 
 .header-acciones {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
-    justify-content: center;        /* centrado igual que footer/título */
+    justify-content: flex-end;        /* pegados al borde derecho del .layout (sidebar) */
     align-items: center;
     gap: 8px;
     width: 100%;
-    margin-bottom: 10px;            /* espacio antes del título */
+    margin-bottom: 10px;
+    padding-right: 20px;              /* margen desde el borde de la sidebar */
 }
 
 .btn-logout {
@@ -542,12 +541,12 @@ footer {
     background-image: linear-gradient(to top, #800000, #000000);
     color: #ffffff;
     text-align: center;
-    padding: 10px 0;
+    padding: 10px 20px;
     position: static;
     bottom: 0;
-    width: 100%;
-    margin-top: 100px;
-    box-sizing: border-box;         /* consistencia con header/main */
+    max-width: 720px;                 /* mismo ancho máximo que buscador */
+    margin: 100px auto 0;             /* centrado con margin: auto como buscador */
+    box-sizing: border-box;
 }
 
 .soporte {
