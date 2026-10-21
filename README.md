@@ -127,7 +127,7 @@ usuario que creaste en el Paso 5.
 
 ## 2. Despliegue en Producción (Debian 12 Bare-Metal sin Virtualmin)
 
-Este despliegue está diseñado para un **servidor Debian 12 limpio (fresh install)** con **2 GB RAM / 2 vCPU**, sin paneles de control. Usa **Gunicorn como servicio systemd** y **Apache 2 como Reverse Proxy** con **Certbot (Let's Encrypt)** para HTTPS.
+Este despliegue está diseñado para un **servidor Debian 12 limpio (fresh install)** con **1 GB RAM / 2 vCPU**, sin paneles de control. Usa **Gunicorn como servicio systemd** y **Apache 2 como Reverse Proxy** con **Certbot (Let's Encrypt)** para HTTPS.
 
 > **Arquitectura:**  
 > `Cliente (HTTPS :443)` → `Apache 2 (:80/:443)` → `ProxyPass` → `Gunicorn (127.0.0.1:5000)` → `Flask App` → `MariaDB (localhost:3306)`
@@ -164,11 +164,11 @@ mariadb --version      # 10.11+
 
 ---
 
-### Paso 2 — Optimización de Recursos (2 GB RAM)
+### Paso 2 — Optimización de Recursos (1 GB RAM)
 
-En servidores con 2 GB de RAM es **altamente recomendable** crear **swap** para evitar que el OOM Killer mate procesos (Gunicorn, MariaDB, Apache) bajo carga.
+En servidores con 1 GB de RAM es **crítico** crear **swap** para evitar que el OOM Killer mate procesos (Gunicorn, MariaDB, Apache) bajo carga. La regla práctica: **swap = 2× RAM física** (2 GB).
 
-**Opción A — Archivo de swap de 2 GB (recomendado para 2 GB RAM):**
+**Recomendado — Archivo de swap de 2 GB (2× RAM):**
 
 ```bash
 fallocate -l 2G /swapfile
@@ -178,7 +178,7 @@ swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
 
-**Opción B — Archivo de swap de 1 GB (mínimo):**
+**Mínimo — Archivo de swap de 1 GB (1× RAM):**
 
 ```bash
 fallocate -l 1G /swapfile
@@ -188,7 +188,7 @@ swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
 
-**Ajuste de *swappiness* (opcional, para priorizar RAM):**
+**Ajuste de *swappiness* (recomendado en 1 GB RAM):**
 
 ```bash
 echo 'vm.swappiness=10' >> /etc/sysctl.d/99-swappiness.conf
@@ -345,10 +345,11 @@ chmod 600 .env
 
 ### Paso 6 — Servicio Systemd con Gunicorn
 
-Calculá workers óptimos para **2 vCPU / 2 GB RAM**:
+Calculá workers óptimos para **2 vCPU / 1 GB RAM**:
 
-- Fórmula clásica: `(2 * núcleos) + 1 = 5` → **demasiado pesado** para 2 GB.
-- **Recomendado:** **2 o 3 workers** *sync* + hilos, o **2 workers** *gthread*.
+- Fórmula clásica: `(2 * núcleos) + 1 = 5` → **imposible** en 1 GB (OOM garantizado).
+- **Recomendado:** **2 workers sync** (~150-200 MB c/u = ~300-400 MB total) + swap.
+- **Alternativa I/O:** **1-2 workers gthread** con hilos (menor RAM, mejor concurrencia).
 
 **Archivo `/etc/systemd/system/cdhi.service`:**
 
@@ -365,16 +366,16 @@ User=cdhi
 Group=www-data
 WorkingDirectory=/var/www/cdhi
 EnvironmentFile=/var/www/cdhi/.env
-# Opción A: 3 workers sync (simple, ~150-200 MB c/u = ~450-600 MB total)
+# Opción A: 2 workers sync (recomendado 1 GB RAM, ~300-400 MB total)
 ExecStart=/var/www/cdhi/.venv/bin/gunicorn \
-    --workers 3 \
+    --workers 2 \
     --bind 127.0.0.1:5000 \
     --timeout 60 \
     --access-logfile - \
     --error-logfile - \
     app:app
 
-# Opción B (alternativa): 2 workers gthread (mejor concurrencia I/O, menor RAM)
+# Opción B (alternativa I/O): 2 workers gthread (mejor concurrencia, similar RAM)
 # ExecStart=/var/www/cdhi/.venv/bin/gunicorn \
 #     --workers 2 \
 #     --threads 4 \

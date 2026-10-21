@@ -46,7 +46,7 @@ textarea:focus-visible {
    --------------------------------------------------------------------- */
 header {
     position: relative;
-    z-index: 1000;                  /* por encima del sidebar fixed (z-index: 1100) */
+    z-index: 1000;                  /* por debajo del sidebar fixed (z-index: 1100) */
     color: #ffffff;
     background-image: linear-gradient(to top, #000000, #800000);
     padding: 10px 20px;
@@ -58,13 +58,10 @@ header {
 }
 
 @media (min-width: 901px) {
-    /* .layout envuelve header y main; footer está fuera */
+    /* .layout y footer conservan el ancho del contenido, antes del panel lateral. */
     .layout {
         width: calc(100% - var(--ancho-sidebar-salida));
         /* left-aligned para que su borde derecho coincida con la sidebar */
-    }
-    footer {
-        width: calc(100% - var(--ancho-sidebar-salida));
     }
 }
 
@@ -549,6 +546,12 @@ footer {
     width: 100%;
     margin-top: 100px;
     box-sizing: border-box;
+}
+
+@media (min-width: 901px) {
+    footer {
+        width: calc(100% - var(--ancho-sidebar-salida));
+    }
 }
 
 .soporte {
