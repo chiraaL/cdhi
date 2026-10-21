@@ -58,9 +58,12 @@ header {
 }
 
 @media (min-width: 901px) {
-    body.pagina-inventario > header,
-    body.pagina-inventario > main,
-    body.pagina-inventario > footer {
+    /* .layout envuelve header y main; footer está fuera */
+    .layout {
+        width: calc(100% - var(--ancho-sidebar-salida));
+        /* left-aligned para que su borde derecho coincida con la sidebar */
+    }
+    footer {
         width: calc(100% - var(--ancho-sidebar-salida));
     }
 }
