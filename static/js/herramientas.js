@@ -95,6 +95,7 @@ function renderGrilla(lista) {
         titulo.textContent = h.nombre;
 
         const btnCarrito = document.createElement("button");
+        btnCarrito.type = "button";
         btnCarrito.className = "carrito";
         btnCarrito.textContent = "Carrito";
         if (stockVisible <= 0) btnCarrito.disabled = true;

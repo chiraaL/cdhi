@@ -2,7 +2,7 @@
 
 > **Qué es este documento.** Un recorrido completo, archivo por archivo, del sistema C.D.H.I. (Control Digitalizado de Herramientas e Insumos): una aplicación web Flask + MySQL para el pañol de una escuela técnica. Está escrito con enfoque pedagógico: cada archivo explica qué hace, por qué está hecho así y cómo se conecta con el resto.
 >
-> **Cobertura (cero omisiones).** Se documentan los 28 archivos del proyecto: 8 en la raíz (`app.py`, `config.py`, `db.py`, `init_db.py`, `crear_usuario.py`, `requirements.txt`, `.env.example`, `README.md`), 4 plantillas Jinja2 (`templates/`), 9 scripts de frontend (`static/js/`), 5 hojas de estilo (`static/css/`), 5 recursos gráficos (`static/img/`) y el directorio de datos `registros/`. También se documenta explícitamente lo que **no** existe (no hay `Dockerfile`, no hay tests, no hay `package.json`, no hay repositorio git) para que nadie dé por sentado algo que no está.
+> **Cobertura (cero omisiones).** Se documentan los 31 archivos fuente y de documentación del proyecto: 8 en la raíz (`app.py`, `config.py`, `db.py`, `init_db.py`, `crear_usuario.py`, `requirements.txt`, `.env.example`, `README.md`), 4 plantillas Jinja2 (`templates/`), 9 scripts de frontend (`static/js/`), 5 hojas de estilo (`static/css/`), 5 recursos gráficos (`static/img/`) y el directorio de datos `registros/` (vacío en el checkout; se documenta su contrato). A ellos se suman los artefactos que sostienen esta documentación (`md_to_docx.py`, `README.docx` y este `README_TECNICO.md`) y el `.env` real, del que se explica su rol **sin reproducir sus secretos**. No se documentan `venv/` ni `__pycache__/` porque son un entorno de dependencias y artefactos generados por Python, no código del proyecto. También se documenta explícitamente lo que **no** existe (no hay `Dockerfile`, no hay tests, no hay `package.json`, no hay `.gitignore`) para que nadie dé por sentado algo que no está.
 >
 > **Cómo leerlo.** Si es la primera vez que ves el proyecto: lee la sección 1 (arquitectura) y después ve archivo por archivo en el orden propuesto (raíz → plantillas → JS → CSS). Si ya conocés el proyecto: usá el índice por archivo; cada ficha tiene la misma estructura de 4 bloques: *Propósito e integración*, *Desglose técnico detallado* (con el porqué de cada decisión), *Flujo de datos y ejecución* y, cuando aporta, *Trampas y límites conocidos*.
 
@@ -15,11 +15,13 @@
    - 2.1 [`config.py`](#21-configpy)
    - 2.2 [`db.py`](#22-dbpy)
    - 2.3 [`init_db.py`](#23-init_dbpy)
+     - 2.3.1 [Modelo entidad-relación (MER)](#231-modelo-entidad-relación-mer)
    - 2.4 [`crear_usuario.py`](#24-crear_usuariopy)
    - 2.5 [`requirements.txt`](#25-requirementstxt)
    - 2.6 [`.env.example`](#26-envexample)
    - 2.7 [`README.md`](#27-readmemd)
    - 2.8 [`app.py`](#28-apppy)
+   - 2.9 [`md_to_docx.py` y artefactos Word](#29-md_to_docxpy-y-artefactos-word)
 3. [Plantillas Jinja2 (`templates/`)](#3-plantillas-jinja2-templates)
    - 3.1 [`templates/base.html`](#31-templatesbasehtml)
    - 3.2 [`templates/login.html`](#32-templatesloginhtml)
@@ -70,11 +72,11 @@ C.D.H.I. digitaliza la operación diaria del pañol de una escuela técnica:
 | Capa | Tecnología | Por qué se eligió (según se desprende de las decisiones del código) |
 |---|---|---|
 | Backend | **Python 3 + Flask 3** | Framework minimalista: un único proceso sirve páginas Jinja2 **y** API REST. Sin ORM ni capas extra: para un pañol escolar, la simplicidad operativa pesa más que la escalabilidad. |
-| Base de datos | **MySQL 8 (InnoDB, utf8mb4)** | Motor relacional disponible en cualquier hosting/Virtualmin; InnoDB da transacciones reales, claves foráneas y bloqueos `FOR UPDATE` (necesarios para el control de stock concurrente). |
+| Base de datos | **MySQL 8 / MariaDB (InnoDB, utf8mb4)** | Motor relacional disponible en cualquier servidor Linux (en producción, Debian 12); InnoDB da transacciones reales, claves foráneas y bloqueos `FOR UPDATE` (necesarios para el control de stock concurrente). |
 | Acceso a datos | **PyMySQL + adaptador propio** (`db.py`) | Driver puro Python (se instala con pip, sin compilar). `db.py` lo envuelve para imitar la API de `sqlite3` (`conn.execute(...).fetchone()`), lo que mantiene `app.py` corto y legible. |
 | Frontend | **HTML + CSS + JS vanilla** | Sin build step, sin npm, sin frameworks: cualquiera puede editar un `.js` y recargar. Las funciones se comunican por variables globales (`carrito`, `herramientasCache`, `mostrarAlerta`). |
 | Librerías de frontend | **`<model-viewer>` (Google) y `html5-qrcode` (unpkg)** | Se cargan por CDN; el logo 3D (`.gltf`) y el lector QR funcionan sin empaquetado. |
-| Producción | **Gunicorn + Apache (Virtualmin) + systemd** | Apache ya está en el server de la escuela; Gunicorn corre solo en `127.0.0.1` y Apache hace de proxy inverso con HTTPS. |
+| Producción | **Gunicorn + Apache 2 + systemd (Debian 12)** | Apache ya está en el server de la escuela; Gunicorn corre solo en `127.0.0.1:5000` con 2 workers (1 GB de RAM) y Apache hace de proxy inverso con HTTPS. |
 
 ### 1.3. Mapa de capas y comunicación
 
@@ -183,13 +185,20 @@ Es la **capa de acceso a MySQL**. Expone `get_connection()` (conexión cruda) y,
 ### 2.3. `init_db.py`
 
 **Propósito e integración.**
-Script **manual y de una sola ejecución** (`python init_db.py`) que crea la base de datos y todo el esquema en MySQL. Es la fuente de verdad del modelo de datos que `app.py` consulta y que la documentación por tablas de esta sección describe. Importa credenciales de `config.py` y usa PyMySQL directo (sin pasar por `db.py`, porque necesita conectarse *sin* base seleccionada para poder crearla). No lo importa nadie.
+Script **manual** (`python init_db.py`) que crea la base de datos, todo el esquema en MySQL y aplica una migración idempotente del detalle de préstamos. Se ejecuta en la primera instalación y también después de actualizar el código cuando cambia el esquema; no está pensado para correr en cada arranque de la app. Es la fuente de verdad del modelo de datos que `app.py` consulta y que la documentación por tablas de esta sección describe. Importa credenciales de `config.py` y usa PyMySQL directo (sin pasar por `db.py`, porque necesita conectarse *sin* base seleccionada para poder crearla). No lo importa nadie.
 
 **Desglose técnico detallado.**
 
 - **Validación previa del nombre de base**: `re.fullmatch(r"[A-Za-z0-9_]+", MYSQL_DB)`; si no cumple, `sys.exit(...)`. El porqué es explícito en un comentario: un identificador SQL (nombre de base) **no se puede parametrizar** con `%s`; al interpolarse con f-strings, la única defensa es validarlo contra un patrón estricto (letras, números, guion bajo). Así se cierra la puerta a inyección SQL por variable de entorno `MYSQL_DB`.
 - **Conexión administrativa**: `pymysql.connect(...)` **sin** `database=`, con `autocommit=True` (cada DDL se aplica y persiste al instante; en MySQL el DDL además provoca commits implícitos). `charset="utf8mb4"`.
 - **`ESQUEMA`**: una cadena multilínea con todas las sentencias `CREATE TABLE IF NOT EXISTS`, ejecutadas una por una tras partir la cadena por `;` (el esquema no contiene `;` dentro de strings, supuesto válido y comentado en el flujo). El uso de `IF NOT EXISTS` hace el script idempotente: correrlo dos veces no falla.
+- **`migrar_prestamo_item(cur)`**: la única migración de datos/estructura del proyecto, y una lección de cómo evolucionar un esquema sin framework. Se ejecuta **siempre** después de crear las tablas y hace, en orden:
+  1. `SHOW COLUMNS FROM prestamo_item LIKE 'herramienta_nombre'`; si la columna no existe, la agrega como `VARCHAR(100) NULL`.
+  2. `UPDATE ... JOIN herramientas` para copiar el nombre actual de cada herramienta a las filas históricas que tengan `herramienta_nombre` nulo. Este paso es el que **preserva el historial**: a partir de ahora el detalle del encargo guarda su propio nombre y no depende de que la herramienta siga existiendo.
+  3. `ALTER TABLE ... MODIFY herramienta_nombre VARCHAR(100) NOT NULL`, una vez que todas las filas tienen valor.
+  4. Consulta `information_schema.KEY_COLUMN_USAGE` + `REFERENTIAL_CONSTRAINTS` para descubrir el nombre real y la regla `DELETE_RULE` de la FK de `herramienta_id` (el nombre puede variar entre instalaciones). Si ya hay **una sola** FK con `SET NULL` y la columna ya es `NULL`, retorna sin tocar nada (idempotencia).
+  5. Si no, elimina todas las FK viejas de esa columna (con el nombre escapado entre backticks y duplicando los backticks internos), cambia `herramienta_id` a `INT NULL` y crea `fk_prestamo_item_herramienta ... ON DELETE SET NULL`.
+  El porqué del diseño: `CREATE TABLE IF NOT EXISTS` no modifica tablas existentes; sin esta función, una base creada con la versión anterior seguiría con `herramienta_id NOT NULL` y sin `herramienta_nombre`, y el nuevo borrado de herramientas fallaría. La función es **idempotente** (se puede correr varias veces) y **conserva datos** (no borra ni recrea la tabla).
 - **Modelo de datos completo** (este es el contrato real de la base):
 
 | Tabla | Columnas y claves | Por qué |
@@ -199,8 +208,97 @@ Script **manual y de una sola ejecución** (`python init_db.py`) que crea la bas
 | `tags` | `id` PK; `nombre` VARCHAR(50) NOT NULL UNIQUE | Tabla de tags normalizada y compartida entre herramientas (el mismo tag "Manual" no se duplica por herramienta). |
 | `herramienta_tag` | PK compuesta (`herramienta_id`, `tag_id`); FKs a `herramientas` y `tags` **ON DELETE CASCADE** | Relación N:M. La PK compuesta impide pares duplicados; el CASCADE hace que borrar una herramienta (o un tag) limpie sola la tabla puente, sin código extra. |
 | `prestamos` | `id` PK; `profesor` VARCHAR(100) NOT NULL; `alumno` VARCHAR(100) NULL; `curso` VARCHAR(50) NULL; `fecha_salida` TIMESTAMP default CURRENT_TIMESTAMP; `fecha_entrada` TIMESTAMP NULL; `estado` VARCHAR(20) NOT NULL DEFAULT `'pendiente'`; `INDEX idx_estado` | Un encargo = una fila. `estado` (`pendiente`/`devuelto`) como texto legible + índice para el filtro `?estado=`. `fecha_entrada` NULL mientras no se devuelva. |
-| `prestamo_item` | `id` PK; `prestamo_id` FK → `prestamos` **ON DELETE CASCADE**; `herramienta_id` FK → `herramientas` **sin cascade**; `cantidad` INT NOT NULL | Detalle N:M de un encargo. El **cascade asimétrico es intencional**: borrar un encargo borra sus items, pero borrar una herramienta referenciada **falla** a nivel FK — eso es lo que protege el historial y lo que `borrar_herramienta` traduce a un 409 amistoso. |
+| `prestamo_item` | `id` PK; `prestamo_id` FK → `prestamos` **ON DELETE CASCADE**; `herramienta_id` INT **NULL** FK → `herramientas` **ON DELETE SET NULL**; `herramienta_nombre` VARCHAR(100) **NOT NULL**; `cantidad` INT NOT NULL | Detalle N:M de un encargo. El **cascade asimétrico es intencional**: borrar un encargo borra sus items; borrar una herramienta **no** borra el historial, deja `herramienta_id = NULL` y conserva el nombre en `herramienta_nombre`. Esa columna es una **foto del nombre al momento del préstamo**, no una copia viva: si mañana se renombra la herramienta, el encargo viejo sigue mostrando cómo se llamaba entonces. |
 | `notas` | `id` INT PK (siempre 1); `texto` TEXT NOT NULL; `fecha_actualizacion` TIMESTAMP default CURRENT_TIMESTAMP **ON UPDATE CURRENT_TIMESTAMP** | Bloc compartido modelado como fila única fija `id=1`; el `ON UPDATE` mantiene la fecha de última edición sin código SQL adicional. |
+
+#### 2.3.1. Modelo entidad-relación (MER)
+
+**Diagrama completo (una sola imagen).** El MER se dibuja con Mermaid `erDiagram`: las 7 tablas en un mismo gráfico, cada FK como línea y la cardinalidad en los símbolos de los extremos y en la etiqueta de la relación. `USUARIOS` y `NOTAS` están incluidas; no tienen FK, por eso quedan sin línea.
+
+```mermaid
+erDiagram
+    USUARIOS {
+        int id PK
+        varchar username UK
+        varchar password_hash
+        timestamp fecha_creacion
+    }
+
+    HERRAMIENTAS {
+        int id PK
+        varchar nombre
+        text descripcion
+        varchar imagen
+        int cantidad
+        tinyint es_qr
+        varchar qr_codigo UK
+    }
+
+    TAGS {
+        int id PK
+        varchar nombre UK
+    }
+
+    HERRAMIENTA_TAG {
+        int herramienta_id PK
+        int tag_id PK
+    }
+
+    PRESTAMOS {
+        int id PK
+        varchar profesor
+        varchar alumno
+        varchar curso
+        timestamp fecha_salida
+        timestamp fecha_entrada
+        varchar estado
+    }
+
+    PRESTAMO_ITEM {
+        int id PK
+        int prestamo_id FK
+        int herramienta_id FK
+        varchar herramienta_nombre
+        int cantidad
+    }
+
+    NOTAS {
+        int id PK
+        text texto
+        timestamp fecha_actualizacion
+    }
+
+    HERRAMIENTAS ||--o{ HERRAMIENTA_TAG : "1:N"
+    TAGS ||--o{ HERRAMIENTA_TAG : "1:N"
+    PRESTAMOS ||--|{ PRESTAMO_ITEM : "1:N"
+    HERRAMIENTAS o|--o{ PRESTAMO_ITEM : "0..1:N opcional"
+```
+
+**Cardinalidades.**
+
+| Relación | Cardinalidad | Lectura |
+|---|---|---|
+| `HERRAMIENTAS` → `HERRAMIENTA_TAG` | 1:N | Una herramienta puede tener cero o muchos tags; cada fila puente apunta a una sola herramienta. |
+| `TAGS` → `HERRAMIENTA_TAG` | 1:N | Un tag puede estar en cero o muchas herramientas; cada fila puente apunta a un solo tag. |
+| `HERRAMIENTAS` ↔ `TAGS` (conjunto) | N:M | Es la relación que implementa la tabla puente: muchos tags por herramienta y muchas herramientas por tag. |
+| `PRESTAMOS` → `PRESTAMO_ITEM` | 1:N | Un encargo tiene uno o más ítems; cada ítem pertenece a un solo encargo. |
+| `HERRAMIENTAS` → `PRESTAMO_ITEM` | 0..1:N | Cada ítem puede apuntar a cero o una herramienta (si se borró, `herramienta_id = NULL`); una herramienta puede aparecer en muchos ítems históricos. |
+| `USUARIOS` | Sin relación | No hay FK hacia `prestamos`; solo se usa para el login. |
+| `NOTAS` | Sin relación | Singleton `id = 1`; no tiene FK. |
+
+**Cómo se lee la cardinalidad.** En Mermaid, `||` = exactamente 1; `o|` = 0 o 1; `|{` = 1 o más; `o{` = 0 o más. La etiqueta de cada relación repite la razón (`1:N`, `0..1:N`) para que no dependa solo del símbolo. La tabla puente `herramienta_tag` implementa el N:M; `prestamo_item.herramienta_id` queda en `NULL` si se borra la herramienta, y `herramienta_nombre` conserva el nombre histórico.
+
+En `HERRAMIENTAS o|--o{ PRESTAMO_ITEM`, el `0..1` se lee **desde el ítem hacia la herramienta**: cada `PRESTAMO_ITEM` puede apuntar a cero o una herramienta (cero si se borró, una si sigue existiendo). El `N` se lee **desde la herramienta hacia los ítems**: una herramienta puede aparecer en muchos ítems históricos. No significa que una herramienta tenga 0..1 ítems; si la FK fuera obligatoria, la relación sería `1:N`.
+
+GitHub/GitLab renderizan el bloque Mermaid; para Word hay que exportar el diagrama como PNG/SVG desde <https://mermaid.live>, porque `md_to_docx.py` no interpreta Mermaid.
+
+**Decisiones del modelo (el porqué).**
+
+- **Tabla puente explícita** (`herramienta_tag`) en vez de un campo `tags` con texto separado por comas: permite índices, integridad referencial, renombrar un tag una sola vez y consultar `GROUP_CONCAT` sin duplicar filas. El costo es una tabla más y el patrón borrar-y-reinsertar de `guardar_tags`.
+- **`prestamo_item` con PK propia** (`id`) y no PK compuesta (`prestamo_id`, `herramienta_id`): un mismo encargo puede repetir la misma herramienta en dos líneas (aunque `crear_prestamo` consolida), y la PK subrogada simplifica el `DELETE`/`UPDATE`. Conceptualmente es una **entidad débil** de `prestamos`: su ciclo de vida depende del encargo (`ON DELETE CASCADE`).
+- **Nombre histórico en el detalle**: `herramienta_nombre` desnormaliza a propósito. Es la única forma de que borrar una herramienta no destruya la trazabilidad del encargo; el precio es que un rename posterior no actualiza los encargos viejos (se guarda la foto del momento, no el nombre vivo).
+- **`herramienta_id` nullable**: materializa la relación opcional que deja `ON DELETE SET NULL`. Sin ella, borrar una herramienta obligaría a borrar su historial o a bloquear el borrado (la regla anterior, que se cambió en esta versión).
+- **`notas` como singleton**: un pañol tiene un solo bloc; modelarlo con `id=1` evita una tabla de "notas por usuario" y hace la escritura atómica. La alternativa (una fila por nota) exigiría orden, autor y merge, complejidad que el caso de uso no pide.
 
 - **Fila fija del bloc**: `INSERT IGNORE INTO notas (id, texto) VALUES (1, '')`. El porqué: `PUT /api/notas` actualiza la fila existente (no hace UPSERT); garantizar la fila 1 desde la creación del esquema simplifica el endpoint y evita un caso especial "primera vez".
 - **Todas las tablas con `ENGINE=InnoDB` y `DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`**: InnoDB es requisito de las FK y de `FOR UPDATE`; utf8mb4_unicode_ci da ordenamiento y comparación correctos para español.
@@ -209,10 +307,10 @@ Script **manual y de una sola ejecución** (`python init_db.py`) que crea la bas
 **Flujo de datos y ejecución.**
 
 - **Entra**: credenciales de `config.py`/entorno y el SQL embebido en `ESQUEMA`.
-- **Procesa**: valida el nombre de base → conecta como usuario administrador → `CREATE DATABASE IF NOT EXISTS ... CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci` → `USE` → crea las 7 tablas → siembra la fila de notas.
-- **Sale**: base de datos lista para que `app.py` y `crear_usuario.py` la usen; imprime confirmación por consola. En producción se corre **una vez** (idealmente como root de MySQL) y luego la app usa un usuario sin permisos DDL (ver `README.md`).
+- **Procesa**: valida el nombre de base → conecta como usuario administrador → `CREATE DATABASE IF NOT EXISTS ... CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci` → `USE` → crea las 7 tablas → ejecuta `migrar_prestamo_item` → siembra la fila de notas.
+- **Sale**: base de datos lista (y actualizada) para que `app.py` y `crear_usuario.py` la usen; imprime confirmación por consola. En producción se corre con un usuario con permisos DDL (idealmente root de MySQL) y luego la app usa un usuario sin DDL (ver `README.md`).
 
-**Trampas y límites conocidos.** `CREATE TABLE IF NOT EXISTS` no migra esquemas: si una tabla ya existe con columnas viejas, el script no las altera. No hay herramienta de migraciones (Alembic, Flyway): los cambios de esquema hoy implican SQL manual.
+**Trampas y límites conocidos.** `CREATE TABLE IF NOT EXISTS` **no** migra esquemas por sí solo: si una tabla ya existe con columnas viejas, no la altera. La excepción es `migrar_prestamo_item`, una migración puntual y escrita a mano para el cambio `herramienta_id` + `herramienta_nombre`; cualquier cambio futuro necesita una función equivalente. No hay framework de migraciones (Alembic, Flyway) ni tabla de versiones: el programador debe escribir migraciones idempotentes y ejecutar `init_db.py` (o el `ALTER TABLE` equivalente) de forma consciente. Además, el script conecta **sin** base y hace `CREATE DATABASE`; por eso en producción no se ejecuta como usuario de la app (ver sección 13).
 
 ### 2.4. `crear_usuario.py`
 
@@ -252,7 +350,7 @@ Declara las 5 dependencias Python con rangos de versión compatibles; es lo que 
 ### 2.6. `.env.example`
 
 **Propósito e integración.**
-Plantilla de configuración versionada en el repo (el `.env` real **no** se versiona). Es el contrato documentado entre `config.py` y quien despliega: cada variable que aparece aquí es leída por `config.py` o `app.py`, con comentarios de uso. Se copia con `cp .env.example .env` y se completa.
+Plantilla de configuración versionada en el repo. Es el contrato documentado entre `config.py` y quien despliega: cada variable que aparece aquí es leída por `config.py` o `app.py`, con comentarios de uso. Se copia con `cp .env.example .env` y se completa. **Advertencia de estado real:** en este checkout el `.env` con secretos también está versionado (ver sección 12); lo correcto es que `.env` esté en `.gitignore` y solo se versione `.env.example`. Los valores del `.env` no se reproducen en esta documentación.
 
 **Desglose técnico detallado y el porqué de cada variable.**
 
@@ -262,25 +360,27 @@ Plantilla de configuración versionada en el repo (el `.env` real **no** se vers
 - `SESSION_COOKIE_SECURE=0` — con `0` la cookie viaja también por HTTP (necesario en desarrollo local, que no tiene TLS); en producción se pone `1` para que el navegador solo la envíe por HTTPS. `app.py` acepta `1/true/yes/on` como "activado".
 - El encabezado advierte "Nunca subas `.env` al repositorio: tiene secretos" — la contramedida operativa es `chmod 600 .env` (paso 5 del despliegue) y mantenerlo fuera de cualquier copia pública.
 
+**El `.env` real.** Es el archivo que `load_dotenv()` lee al importar `config.py`; contiene los mismos nombres que `.env.example` pero con valores reales (`SECRET_KEY`, contraseña de MySQL, etc.). En desarrollo convive con el proyecto; en producción systemd lo inyecta con `EnvironmentFile=`. **En este checkout está versionado en git por error**, junto con `README.docx` y `md_to_docx.py`; la sección 12 explica el riesgo y la remediación (`git rm --cached .env`, `.gitignore`, rotación de secretos). No se documentan sus valores.
+
 ### 2.7. `README.md`
 
 **Propósito e integración.**
-Es la guía **operativa** del proyecto (no la técnica; este documento es la técnica). Su audiencia es quien instala/despliega: pasos de instalación local, despliegue en producción con Virtualmin (Gunicorn + Apache + systemd + Let's Encrypt + UFW + backups), tabla de variables de entorno, solución de problemas y checklist de seguridad. No lo ejecuta nadie; lo leen humanos. Se complementa con este `README_TECNICO.md`: el `README.md` responde "¿cómo lo pongo a andar?", este documento responde "¿cómo funciona y por qué está hecho así?".
+Es la guía **operativa** del proyecto (no la técnica; este documento es la técnica). Su audiencia es quien instala/despliega: instalación local y despliegue en producción sobre **Debian 12 bare-metal** (Gunicorn + Apache 2 + systemd + Certbot/Let's Encrypt + UFW + backups), tabla de variables de entorno, solución de problemas y checklist de seguridad. No lo ejecuta nadie; lo leen humanos. Se complementa con este `README_TECNICO.md`: el `README.md` responde "¿cómo lo pongo a andar?", este documento responde "¿cómo funciona y por qué está hecho así?".
 
 **Desglose técnico (qué decisiones de infraestructura fija y por qué importan).**
 
 - **Instalación local**: venv → `pip install -r requirements.txt` → crear base/usuario MySQL como root con `CREATE DATABASE ... utf8mb4` + `GRANT ALL ON cdhi.*` → copiar `.env.example` → `python init_db.py` → `python crear_usuario.py` → `python app.py` en `http://127.0.0.1:5000`.
-- **Unit de systemd** (`/etc/systemd/system/cdhi.service`): corre como usuario sin privilegios `cdhi`, `WorkingDirectory=/var/www/cdhi`, `EnvironmentFile=.env` (por eso `config.py` funciona igual en producción: las variables reales llegan por el entorno), `ExecStart=.../gunicorn --workers 3 --bind 127.0.0.1:5000 --timeout 60 app:app`, `Restart=always`. El porqué de cada flag: 3 workers sincrónicos sobran para una escuela; `127.0.0.1` garantiza que Gunicorn **no** sea accesible desde internet (Apache es la única puerta); `--timeout 60` da margen a subidas de hasta 5 MB.
+- **Unit de systemd** (`/etc/systemd/system/cdhi.service`): corre como usuario sin privilegios `cdhi`, `WorkingDirectory=/var/www/cdhi`, `EnvironmentFile=/var/www/cdhi/.env` (por eso `config.py` funciona igual en producción: las variables reales llegan por el entorno), `ExecStart=.../gunicorn --workers 2 --bind 127.0.0.1:5000 --timeout 60 app:app`, `Restart=always` y hardening (`NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ReadWritePaths` solo para `registros/` y `static/img/`). El porqué de cada flag: con **1 GB de RAM** la fórmula `(2 × vCPU) + 1` daría 5 workers y el OOM Killer mataría el proceso; **2 workers sync** usan ~300–400 MB y sobran para una escuela (existe la alternativa `gthread` documentada). `127.0.0.1` garantiza que Gunicorn **no** sea accesible desde internet (Apache es la única puerta); `--timeout 60` da margen a subidas de hasta 5 MB.
 - **Apache como proxy inverso**: `ProxyPass / http://127.0.0.1:5000/` para todo, con un `Alias /static` para que Apache sirva los estáticos directamente (más rápido y menos carga para Gunicorn). Alternativa documentada con uWSGI, mismo esquema de proxy.
 - **MySQL de producción con privilegios mínimos**: `GRANT SELECT, INSERT, UPDATE, DELETE ON cdhi.*` — sin DDL. El esquema se crea aparte, una sola vez, con un usuario administrador. Es la aplicación práctica del principio de mínimo privilegio.
-- **Hardening**: HTTPS con Let's Encrypt vía Virtualmin; UFW abre solo 80/443/ssh (el 5000 nunca se expone); `.env` con `chmod 600`; backups con `mysqldump` + `tar` de `static/img` y `registros/` (los tres activos que no están en git: base, imágenes subidas, logs).
+- **Hardening**: HTTPS con Certbot (Let's Encrypt) sobre Apache 2; UFW abre solo 80/443/ssh (el 5000 nunca se expone); `.env` con `chmod 600`; backups con `mysqldump` + `tar` de `static/img` y `registros/` (los tres activos que no están en git: base, imágenes subidas, logs). El `README.md` también exige **swap de 2 GB** y `vm.swappiness=10` por la RAM del servidor.
 - **Solución de problemas**: tabla síntoma→revisión (502 → `systemctl status cdhi`; error MySQL → `.env` y `journalctl`; imágenes que no aparecen → permisos de `static/img`; página vieja → caché del navegador).
 - **Checklist de seguridad**: clave propia, usuario MySQL sin DDL, HTTPS, `.env` 600, Gunicorn solo localhost, backups automatizados.
 
 ### 2.8. `app.py`
 
 **Propósito e integración.**
-Es el **corazón del backend** (885 líneas): el único servidor Flask que existe. Concentra tres roles:
+Es el **corazón del backend** (878 líneas en la versión actual): el único servidor Flask que existe. Concentra tres roles:
 
 1. **Servidor de páginas** Jinja2 (`/`, `/login`, `/index`, `/gestionar-herramientas`) con guardas de sesión.
 2. **API REST JSON** para todo lo que hace el frontend (login/sesión, catálogo, subida de imágenes, préstamos, movimientos, notas).
@@ -373,7 +473,7 @@ Depende de `config.py` (SECRET_KEY), de `db.py` (context manager `db()`), de Fla
   4. Si es QR: duplicado de código **excluyendo la propia herramienta** (`WHERE qr_codigo=%s AND id<>%s`) → 409.
   5. `UPDATE herramientas SET nombre, descripcion, imagen, cantidad, es_qr, qr_codigo WHERE id=%s` + `guardar_tags` (reemplaza tags).
   6. Responde `200 {"ok": true, "id": ...}`.
-- **`DELETE /api/herramientas/<int:herramienta_id>` (`borrar_herramienta`)**: antes de borrar cuenta referencias en `prestamo_item` (`SELECT COUNT(*) ... WHERE herramienta_id=%s`); si hay historial → `409 "No se puede borrar: la herramienta tiene historial de encargos"`. El comentario en el código explica el porqué con precisión: sin este chequeo, el `DELETE` violaría la FK de `prestamo_item` y moriría con un 500, perdiendo la trazabilidad del log. Si nadie la referencia: `DELETE` y `rowcount == 0` → 404 (herramienta inexistente). Los `herramienta_tag` se borran solos por `ON DELETE CASCADE`.
+- **`DELETE /api/herramientas/<int:herramienta_id>` (`borrar_herramienta`)**: ejecuta directamente `DELETE FROM herramientas WHERE id = %s`; si `rowcount == 0` → `404 "No existe esa herramienta"`. Ya **no** bloquea el borrado cuando hay historial: el esquema actual lo permite sin perder trazabilidad. Los `herramienta_tag` se borran en cascada; en `prestamo_item`, la FK `ON DELETE SET NULL` deja `herramienta_id = NULL` y el nombre histórico sigue disponible en `herramienta_nombre`. Ese nombre es el que usa `listar_prestamos` (`COALESCE(pi.herramienta_nombre, h.nombre)`) y el que se escribe en el CSV al devolver, de modo que el reporte nunca muestra un hueco. El costo de esta decisión: el vínculo con el catálogo se pierde para siempre (solo queda el nombre), y por eso el borrado sigue siendo una acción destructiva que la UI confirma con doble clic.
 - **`POST /api/upload-imagen` (`subir_imagen`)**: la subida de imágenes con **defensa en tres capas** (ninguna capa sola alcanza):
   1. **Nombre del archivo** (`extension_permitida`): extensión en lista blanca.
   2. **Declaración del cliente**: `archivo.mimetype` debe empezar con `image/` y además coincidir exactamente con el mime esperado para esa extensión (mapa `mime_por_extension`); si no → 400 "El contenido no coincide con el formato de imagen".
@@ -382,7 +482,7 @@ Depende de `config.py` (SECRET_KEY), de `db.py` (context manager `db()`), de Fla
 
 #### 2.8.5. Préstamos (encargos)
 
-- **`GET /api/prestamos` (`listar_prestamos`)**: filtro por `?estado=` validado contra el conjunto `{"pendiente","devuelto"}` (cualquier otro → 400 "Estado inválido"; default `"pendiente"`). Trae los encargos `ORDER BY fecha_salida DESC` y **por cada uno** consulta sus items (`JOIN herramientas`) y arma `lista_herramientas = "Martillo (x2), Sierra (x1)"`. Serialización: `fecha_salida`/`fecha_entrada` a string (o None), `estado`, y datos del responsable. El porqué del formato "nombre (xN)": es exactamente lo que la UI muestra en la lista de "Herramientas afuera" y evita que el frontend tenga que cruzar datos. Nota: es una consulta N+1 (1 + una por encargo); irrelevante a esta escala y mantenido por simplicidad.
+- **`GET /api/prestamos` (`listar_prestamos`)**: filtro por `?estado=` validado contra el conjunto `{"pendiente","devuelto"}` (cualquier otro → 400 "Estado inválido"; default `"pendiente"`). Trae los encargos `ORDER BY fecha_salida DESC` y **por cada uno** consulta sus items con `LEFT JOIN herramientas` y `COALESCE(pi.herramienta_nombre, h.nombre) AS nombre`; arma `lista_herramientas = "Martillo (x2), Sierra (x1)"`. El `LEFT JOIN` + `COALESCE` es lo que hace que un encargo histórico siga mostrando el nombre aunque la herramienta se haya borrado (`h.nombre` sería NULL): primero manda la foto histórica y, si por alguna fila vieja no existiera, cae al nombre actual. Serialización: `fecha_salida`/`fecha_entrada` a string (o None), `estado`, y datos del responsable. El porqué del formato "nombre (xN)": es exactamente lo que la UI muestra en la lista de "Herramientas afuera" y evita que el frontend tenga que cruzar datos. Nota: es una consulta N+1 (1 + una por encargo); irrelevante a esta escala y mantenido por simplicidad.
 - **`POST /api/prestamos` (`crear_prestamo`)** — el endpoint más delicado del sistema (control de stock concurrente). Fase de validación:
   1. JSON objeto; `profesor`, `alumno`, `curso` strings; largos ≤100/≤100/≤50 respectivamente; `items` lista de objetos; y `alumno`, `curso` y `items` **no vacíos**. Detalle fino: **`profesor` puede ser vacío** (el formulario lo marca opcional: "Profesor (o persona que retira)"), pero si viene debe ser string.
   2. **Consolidación de items repetidos**: se recorre `items` y se suma, por `herramienta_id`, la cantidad (`cantidades_por_herramienta[h_id] += cant`), validando cada id (`entero_en_rango(minimo=1)`) y cantidad (`minimo=1`) y que la suma no desborde el máximo INT. El comentario lo explica: "Consolidar y ordenar evita validar unidades por separado" y permite bloquear filas en orden estable.
@@ -393,12 +493,12 @@ Depende de `config.py` (SECRET_KEY), de `db.py` (context manager `db()`), de Fla
      - QR: `UPDATE herramientas SET cantidad = 0 WHERE id=%s AND cantidad > 0`; si `rowcount == 0` → otro proceso se la llevó entre el SELECT y el UPDATE → `RuntimeError("'X' se prestó en el instante justo...")` que el `except` convierte en `409` y el context manager `db()` revierte todo.
      - No QR: `UPDATE ... SET cantidad = cantidad - %s WHERE id=%s AND cantidad >= %s`; `rowcount == 0` → `RuntimeError("Se acabó el stock de 'X'...")` → 409.
      El porqué de esta doble verificación (FOR UPDATE + UPDATE condicional): `FOR UPDATE` serializa a los escritores, y el `UPDATE ... WHERE cantidad >= n` es la red de seguridad definitiva — **solo un pedido se queda con la última unidad**, venga de donde venga el pedido.
-     - Por cada item: `INSERT INTO prestamo_item (prestamo_id, herramienta_id, cantidad)` y se acumula `items_log` para el CSV.
+     - Por cada item: `INSERT INTO prestamo_item (prestamo_id, herramienta_id, herramienta_nombre, cantidad)` con el nombre leído bajo `FOR UPDATE`, y se acumula `items_log` para el CSV. Guardar el nombre en el detalle es lo que permite borrar después la herramienta sin romper el historial (ver `borrar_herramienta`).
   5. Fuera de la transacción (ya con commit hecho): `escribir_log("SALIDA", ...)` envuelto en `try/except OSError` con `app.logger.exception` — si el disco de logs falla, la salida ya está registrada en la base y el usuario igual recibe su 201. Responde `201 {"ok": true, "id": prestamo_id}`.
 - **`POST /api/prestamos/<int:prestamo_id>/devolver` (`devolver_prestamo`)**:
   1. `SELECT * FROM prestamos WHERE id=%s FOR UPDATE`; inexistente → 404.
   2. `estado != "pendiente"` → `409 "Ese encargo ya fue devuelto"`. El porqué (comentado): evita que un doble clic o dos pestañas **repongan el stock dos veces**.
-  3. Por cada `prestamo_item`: lee la herramienta; si `es_qr` → `UPDATE ... SET cantidad = 1` (vuelve al pañol; se asigna 1, no se incrementa, para no acumular); si no → `cantidad = cantidad + item.cantidad` (repone exactamente lo que se llevó; por eso el `INSERT` guardó la cantidad pedida). Se acumula `items_log`.
+  3. Por cada `prestamo_item`: busca la herramienta por `item["herramienta_id"]`. Si todavía existe (`h is not None`): `es_qr` → `UPDATE ... SET cantidad = 1` (vuelve al pañol; se asigna 1, no se incrementa, para no acumular); si no → `cantidad = cantidad + item.cantidad` (repone exactamente lo que se llevó; por eso el `INSERT` guardó la cantidad pedida). Si la herramienta fue borrada (`herramienta_id` es NULL por `ON DELETE SET NULL`), **no hay stock que reponer**, pero el movimiento igual se registra en el CSV usando `item["herramienta_nombre"]`. Se acumula `items_log` con `(herramienta_id, herramienta_nombre, cantidad)`.
   4. `UPDATE prestamos SET estado='devuelto', fecha_entrada=NOW() WHERE id=%s`.
   5. Tras el commit: `escribir_log("ENTRADA", ...)` con los datos del encargo (`prestamo["profesor"]`, etc.) y el mismo manejo defensivo de `OSError`. Responde `200 {"ok": true}`.
 
@@ -426,6 +526,39 @@ Depende de `config.py` (SECRET_KEY), de `db.py` (context manager `db()`), de Fla
 
 **Trampas y límites conocidos de `app.py`.** No hay rate limiting en login; no hay usuario operador registrado en el CSV (queda profesor/alumno/curso, no quién manipuló la app); `GET /api/movimientos` no tiene consumidor actual; el log CSV es "best effort" (si falla el disco no se reintenta); `GROUP_CONCAT` puede truncar con demasiados tags. Todas son decisiones de alcance conscientes para un pañol escolar, no olvidos.
 
+### 2.9. `md_to_docx.py` y artefactos Word
+
+**Propósito e integración.**
+Es una **herramienta de documentación**, no parte del runtime de C.D.H.I.: convierte un `.md` (típicamente `README.md` o `README_TECNICO.md`) en un `.docx` con encabezados, tablas, bloques de código, listas y formato inline. Se ejecuta a mano (`python md_to_docx.py README_TECNICO.md README_TECNICO.docx`) y produce los artefactos `README.docx` / `README_TECNICO.docx`, que se comparten con personas que prefieren Word. No lo importa la app, no toca la base ni la red.
+
+**Desglose técnico detallado.**
+
+- **Dependencias**: `markdown` (no se usa en el flujo principal; queda como dependencia histórica), `python-docx` (`Document`, estilos, `Pt`, `Inches`, `RGBColor`, `WD_STYLE_TYPE`, `WD_ALIGN_PARAGRAPH`), `docx.oxml` (`qn`, `OxmlElement`) para la regla horizontal, `re` y `copy`. **No están en `requirements.txt`**: son dependencias de la herramienta de documentación, no de la app; quien la use debe instalarlas aparte (`pip install python-docx markdown`). Esto es deliberado para no engordar el entorno de producción.
+- **Clase `MarkdownToDocx`**: envuelve un `Document` de Word y centraliza el estilo. `setup_styles()` define `Normal` (Calibri 11), un estilo de carácter `InlineCode` (Consolas 10, color `#C7254E`) y un estilo de párrafo `CodeBlock` (Consolas 9.5, sangría 0.3", espacio antes/después 6 pt). El porqué: mantener una única definición de estilo evita que cada bloque de código repita fuente/tamaño y hace el DOCX consistente.
+- **`add_heading(text, level)`**: delega en `doc.add_heading` y **limita el nivel a 3** (`min(level, 3)`) porque Word solo tiene `Heading 1..9` pero el diseño visual del documento no necesita más; un `####` se convierte en `Heading 3` en vez de fallar.
+- **`_add_formatted_text(paragraph, text)`**: parte el texto con `re.split` usando un patrón que reconoce `**negrita**`, `*itálica*` y fragmentos entre backticks, y crea un `run` por segmento con el formato correspondiente. Es un parser inline **deliberadamente simple**: no maneja anidamientos ni links; cubre el subconjunto de Markdown que usan los README. Los `run` conservan el formato aunque el párrafo tenga estilo.
+- **`add_code_block(code, language)`**: crea **un párrafo por línea** con estilo `CodeBlock` (Word no tiene un "bloque" de código nativo). El lenguaje se ignora: no hay resaltado de sintaxis, solo monoespaciado. El porqué: el objetivo es legibilidad/impresión, no un IDE.
+- **`add_table(header_row, data_rows)`**: calcula el máximo de columnas entre header y filas (tolera filas irregulares), crea `1 + len(data_rows)` filas y usa el estilo `Light Grid Accent 1`; escribe el header en negrita 10 pt y los datos en 10 pt. No procesa formato inline dentro de celdas (se inserta el texto tal cual, con `.strip()`), una limitación aceptada.
+- **`add_horizontal_rule()`**: inserta un párrafo vacío y le agrega un borde inferior `w:pBdr`/`w:bottom` vía OXML (Word no tiene un carácter "hr"). El porqué: preservar la separación visual de las secciones del Markdown.
+- **`add_list_item(text, level, ordered, number)`**: usa los estilos nativos `List Bullet` / `List Number` y aplica sangría `0.5 + level*0.25` pulgadas. El parámetro `number` no se usa (el estilo numera solo); es un residuo de la primera versión.
+- **`convert_markdown_to_docx(md_path, docx_path)`**: el parser principal. Lee el archivo en UTF-8 y recorre líneas con una máquina de estados:
+  1. La secuencia de tres backticks abre/cierra un bloque de código (acumula líneas y las vuelca al cerrar; el lenguaje se guarda pero no se usa).
+  2. Líneas que empiezan con `|` se tratan como tabla; la fila de alineación (`--- | ---`) se detecta con `^:?-+:?$` y se descarta; al encontrar una línea que no es tabla, vuelca la tabla y **reprocesa** esa línea (`continue` sin incrementar `i`), evitando perder el párrafo siguiente.
+  3. `#` inicial → encabezado (cuenta `#` para el nivel).
+  4. `---`, `***`, `___` (3+) → regla horizontal.
+  5. Listas `-`, `*`, `+` o `1.` con indentación → nivel `indent // 2` y estilo bullet/number.
+  6. Línea no vacía → párrafo con formato inline; línea vacía → párrafo vacío (espaciado).
+  7. Al terminar, si quedó una tabla abierta, la vuelca; guarda el `.docx` e imprime confirmación.
+- **CLI**: `if __name__ == "__main__"` exige exactamente 2 argumentos (`input.md`, `output.docx`); si no, imprime el uso y sale con código 1. No hay sobrescritura protegida: `doc.save()` pisa el destino si existe.
+
+**Flujo de datos y ejecución.**
+
+- **Entra**: ruta de un `.md` UTF-8 y ruta de salida `.docx`.
+- **Procesa**: parseo línea a línea → construcción de un `Document` de python-docx (estilos, párrafos, tablas, listas, reglas) → `save()`.
+- **Sale**: archivo `.docx` en disco y mensaje `OK Convertido: ...` por consola. **No** modifica el `.md` de origen, no toca la base ni el servidor.
+
+**Artefactos generados.** `README.docx` es la versión Word del `README.md` operativo; `README_TECNICO.docx` (si se regenera) es la versión Word de este documento. Son **derivados**: la fuente de verdad son los `.md`; si se edita un `.md`, hay que volver a convertir para que el `.docx` no quede viejo. No se sirven por Flask ni se referencian desde la app.
+
 ---
 
 ## 3. Plantillas Jinja2 (`templates/`)
@@ -437,9 +570,9 @@ Es el **esqueleto común** de todas las páginas: define el `<head>` (charset, v
 
 **Desglose técnico detallado.**
 
-- **Bloques Jinja2 definidos**: `title` (título de pestaña, default `"C.D.H.I"`), `extra_css` (vacído; cada página agrega sus hojas), `body_class` (clases del body; la usa `index.html` para el layout con sidebar), `content` (el contenido principal), `extra_js` (scripts específicos de página). Es el patrón *template inheritance*: `<head>`, `<body>` y los scripts comunes se escriben una sola vez (el comentario de `login.html` lo explicita).
+- **Bloques Jinja2 definidos**: `title` (título de pestaña, default `"C.D.H.I"`), `extra_css` (vacío; cada página agrega sus hojas), `body_class` (clases del body; la usa `index.html` para el layout con sidebar), `content` (el contenido principal), `extra_js` (scripts específicos de página). Es el patrón *template inheritance*: `<head>`, `<body>` y los scripts comunes se escriben una sola vez (el comentario de `login.html` lo explicita).
 - **`url_for('static', filename='img/t2.png')`** para el favicon y todos los assets: las URLs se construyen desde el nombre del endpoint estático de Flask, así que la app funciona sin importar bajo qué prefijo esté montada (proxy, subcarpeta) y mover archivos dentro de `static/` no rompe nada.
-- **`requirements.css/notificaciones.css` global**: como `mostrarAlerta()` se usa en casi todas las páginas (login incluida), su CSS acompaña al script común.
+- **`notificaciones.css` global**: como `mostrarAlerta()` se usa en casi todas las páginas (login incluida), su CSS acompaña al script común.
 - **`<script> window.APP = { staticUrl: "{{ url_for('static', filename='') }}", username: {{ (session.username | default('') | tojson) | safe }} };</script>`**: el puente entre servidor y JS.
   - `staticUrl` = `"/static/"` (la barra final es deliberada: el JS concatena `img/...`).
   - `username` desde la sesión de Flask: `| default('')` cubre el caso "sin sesión" (páginas públicas como login) y `| tojson | safe` serializa el valor como literal JavaScript **escapado para contexto script** (Jinja2 convierte caracteres peligrosos en `\uXXXX`); el `| safe` evita que el autoescape de Jinja2 HTML-escapee las comillas del JSON y rompa el script. Es la forma correcta de inyectar datos del servidor en JS sin abrir un XSS.
@@ -491,7 +624,7 @@ Es la **pantalla principal de operación** del pañol (ruta protegida `GET /inde
   - `#btn-salida` ("Registrar salida").
   - `.encargos-pendientes` con `<ul id="lista-encargos">` (estado inicial "Cargando…").
   - `.notas-panel`: `<textarea id="notas-texto">`, `<p id="notas-estado">`, `#btn-guardar-nota`. El `id="sidebar-salida"` no es solo estilo: `movimientos.js` lo usa como **detector de página** ("solo en index existe este sidebar") para no ejecutarse en `gestionar-herramientas.html`.
-- **Footer**: link de "Soporte" a un Google Form externo, créditos de los estudiantes y copyright. Es la única salida externa de la app.
+- **Footer**: link de "Soporte" a un Google Form externo (con `target="_blank"` y `rel="noopener noreferrer"`: pestaña nueva sin exponer `window.opener`), créditos de los estudiantes y copyright. Es la única salida externa de la app.
 - **`extra_js` — librerías externas** (ambas por CDN, necesario que el cliente tenga internet; el código maneja su ausencia con notificaciones):
   - `<script type="module" src=".../model-viewer/4.0.0/model-viewer.min.js">`
   - `<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js">`
@@ -504,7 +637,7 @@ Es la **pantalla principal de operación** del pañol (ruta protegida `GET /inde
   6. `auth.js` — al final: al ejecutarse hace su chequeo de sesión y registra el botón de logout.
   El orden importa a nivel de *hooks* (`DOMContentLoaded` se dispara después de cargar todos los scripts clásicos), pero además los guardas `typeof x !== "undefined"` hacen el código tolerante a reordenamientos.
 - **Script inline final** (handlers de descarga): en `DOMContentLoaded`, conecta los dos botones de descarga con una función `descargarConFetch(url, nombreArchivo)` que hace `fetch(url, {credentials:"same-origin"})`, convierte la respuesta a blob y dispara una descarga con un `<a download>` temporal + `URL.createObjectURL`/`revokeObjectURL`. El porqué (comentado en la propia plantilla): usar `fetch` **en vez de** un `<a href>` directo permite leer el JSON de error (p. ej. "Todavía no hay movimientos registrados hoy.") y mostrarlo con `mostrarAlerta` — con un link directo el navegador mostraría JSON crudo o una página de error. Los nombres de archivo se calculan con la fecha del **cliente** (`toISOString().slice(0,10)` y `getFullYear()`), que en la práctica coincide con la del servidor; el nombre real que envía el servidor (`download_name` con su propia fecha) tiene prioridad porque el `a.download` no puede diferir de la respuesta.
-- **`body_class` → `pagina-inventario`**: activa en `index.css` el ancho reducido (`calc(100% - 380px)`) para que el contenido no quede debajo del sidebar fijo.
+- **`body_class` → `pagina-inventario`**: activa en `index.css` el ancho reducido del `.layout` (`calc(100% - var(--ancho-sidebar-salida))`, 380 px) y el del `footer` en `min-width: 901px`, para que el contenido no quede debajo del sidebar fijo. El header queda a todo el ancho; el sidebar tiene `z-index: 1100` y el header `1000`, de modo que el panel tapa el borde derecho del header sin que este lo recorte.
 
 **Flujo de datos y ejecución.**
 
@@ -529,7 +662,7 @@ Página del **ABM del catálogo** (ruta protegida `GET /gestionar-herramientas`)
   - `#h-tags`: input de texto "separados por coma" — el backend acepta string con comas o lista JSON (`parse_tags`), así que este formato es válido de punta a punta.
   - Botones: `#btn-guardar` ("Agregar herramienta" / "Guardar cambios") y `#btn-cancelar-edicion` (oculto salvo en modo edición).
 - **Panel de lista**: `<ul id="lista-admin-herramientas">` con estado inicial "Cargando…", poblado por el JS (cada `<li>` con datos + botones Editar/Borrar).
-- **Footer**: mismo créditos que index.
+- **Footer**: mismos créditos que index y el mismo enlace de **Soporte** al Google Form externo (con `target="_blank"` y `rel="noopener noreferrer"` para abrir en pestaña nueva sin exponer `window.opener`).
 - **`extra_js`**: `html5-qrcode` (CDN) → `qr-scanner.js` → `gestionar-herramientas.js` → `auth.js`. No carga `herramientas.js`/`movimientos.js`: esta página tiene su propia carga de datos (`herramientasAdminCache`), demostrando que el frontend está desacoplado por página.
 
 **Flujo de datos y ejecución.**
@@ -705,7 +838,7 @@ Gestiona el **bloc de notas compartido** en `index.html`: carga la nota al entra
   - `Number.isNaN(fecha.getTime())` → devuelve `""` ante strings pacheados (defensa).
   - `toLocaleString()` respeta el formato local del navegador.
 - **`cargarNota()`** (async): guarda si no hay textarea; `GET /api/notas`; si `!res.ok` lanza; asigna `data.texto` (o `""`); si viene `fecha_actualizacion`, muestra "Última actualización: ...". `catch` → estado "No se pudo cargar la nota guardada." Este estado vive en el propio `<p id="notas-estado">`, no en un toast: es información persistente del panel, no una alerta efímera.
-- **`guardarNota()`** (async): 
+- **`guardarNota()`** (async):
   1. Deshabilita `#btn-guardar-nota` al empezar y lo rehabilita en `finally` — patrón anti doble-submit que además garantiza re-habilitación tanto en éxito como en excepción.
   2. `PUT /api/notas` con JSON `{texto: $texto.value}`.
   3. `!res.ok` → `mostrarAlerta(data.error || ...)` y `return` (el `finally` igual rehabilita).
@@ -783,7 +916,7 @@ Es el módulo más grande del frontend (379 líneas): toda la lógica del **ABM 
 - **`borrarHerramienta(id, nombre, boton)`**: borrado con **confirmación en dos pasos en el mismo botón** (sin `confirm()` nativo):
   1. Primer clic: guarda el texto original en `dataset.textoOriginal`, cambia el texto a "¿Seguro? Tocá de nuevo", agrega clase roja `btn-confirmar-borrado`, y arma un `setTimeout` de **4000 ms** que restaura todo si no hay segundo clic (cancelación por timeout — la confirmación no queda armada para siempre).
   2. Segundo clic: `clearTimeout`, deshabilita el botón ("Borrando…") y `DELETE /api/herramientas/{id}`.
-  3. `!res.ok`: muestra `data.error` (típicamente el 409 "tiene historial de encargos") y restaura el botón.
+  3. `!res.ok`: muestra `data.error` (hoy el caso realista es `404 "No existe esa herramienta"`, p. ej. si se borró en otra pestaña; ya no hay 409 por historial) y restaura el botón.
   4. Éxito: aviso `"X" borrada.`; **si se borró la herramienta que se estaba editando** (`editandoId === id`), limpia el formulario (evita guardar un PUT contra un id inexistente); `cargarLista()`.
   5. `catch`: mensaje de red y restauración completa del botón. El porqué del patrón: un `confirm()` del navegador es feo e inconsistente; el doble clic con timeout es progresivo y reversible.
 - **`DOMContentLoaded`**: `cargarLista()` + `inicializarSubidaImagen()` + listeners de guardar/cancelar + toggle de tipo (el botón "Con QR" valida `esMovil()` **también al clic** — aunque el toggle solo se vea en móvil, la guarda es doble: defensa contra estados raros tipo "se rotó el dispositivo/ventana") + `#btn-escanear-registro` → `abrirEscaneoQR((codigo) => { qrCodigoActual = codigo; aviso "Código QR escaneado."; actualizarVisibilidadTipo(); })` (guarda el código y refresca la info en pantalla). Cierra con `actualizarVisibilidadTipo()` para dejar la UI consistente con el estado inicial.
@@ -846,9 +979,9 @@ Es la hoja **principal**: layout general (header, sidebar, footer), buscador, gr
 - **Base**: `box-sizing` global; `html/body` con `overflow-x: hidden` y fondo negro / texto blanco Arial. El `overflow-x: hidden` es un cinturón contra desbordes horizontales en móvil.
 - **`:root { --ancho-sidebar-salida: 380px }`**: variable de layout que define el ancho del sidebar fijo. — **Nota de mantenimiento**: la misma variable se declara también en `movimientos.css` (donde vive el sidebar); están duplicadas por diseño "cada hoja puede usarse sin la otra", pero deben cambiarse juntas.
 - **`a/button/input/textarea:focus-visible`**: outline amarillo `#ffbf47` de 3 px (visible sobre fondos negros/rojos, accesibilidad de teclado).
-- **Header**: `position: relative; z-index: 1000` (por encima del sidebar `z-index: 500`), degradado `linear-gradient(to top, #000000, #800000)` (negro abajo → borgoña arriba), columna flex.
-- **Layout con sidebar** (`@media (min-width: 901px)`): `body.pagina-inventario > header/main/footer { width: calc(100% - var(--ancho-sidebar-salida)) }` — la única página que usa la clase `pagina-inventario` es `index.html`; así el contenido nunca queda debajo del panel fijo de 380 px. Es CSS puro guiado por la clase que inyecta la plantilla (`body_class` de Jinja2).
-- **`.header-acciones`** y **`.btn-logout`**: fila de botones alineados a la derecha (se centran en `≤480px`, donde además los botones se estiran `flex: 1 1 auto`); botón borgoña con borde rojo, pill (`border-radius: 15px`), hover con opacidad 0.7.
+- **Header**: `position: relative; z-index: 1000` (**por debajo** del sidebar fixed, que tiene `z-index: 1100`: el panel lateral debe tapar el borde derecho del header, no al revés), degradado `linear-gradient(to top, #000000, #800000)` (negro abajo → borgoña arriba), columna flex con `align-items: center`.
+- **Layout con sidebar** (`@media (min-width: 901px)`): `.layout { width: calc(100% - var(--ancho-sidebar-salida)) }` y `.pagina-inventario footer { width: calc(100% - var(--ancho-sidebar-salida)) }` — la única página que usa la clase `pagina-inventario` es `index.html`; así el contenido y el pie nunca quedan debajo del panel fijo de 380 px. El header **no** se angosta: queda a todo el ancho y el sidebar lo cubre en su esquina derecha. Es CSS puro guiado por la clase que inyecta la plantilla (`body_class` de Jinja2); el comentario del archivo explicita que `.layout` debe quedar alineado a la izquierda para que su borde derecho coincida con el sidebar.
+- **`.header-acciones`** y **`.btn-logout`**: fila de botones pegada al borde derecho del `.layout` (`justify-content: flex-end`) con `padding-right: 20px` de margen respecto del sidebar (se centran en `≤480px`, donde además los botones se estiran `flex: 1 1 auto`); botón borgoña con borde rojo, pill (`border-radius: 15px`), hover con opacidad 0.7.
 - **Título y logo**: `.titulo-container` centrado; `.Titulo` con `clamp(20px, 5vw, 32px)`; `model-viewer` de 200×200 (140×140 en móvil) con `max-width/height: 45vw`.
 - **Buscador**: `.buscador` centrado, `max-width: 720px`, borde rojo 3 px; `nav` flex con `<p>` en rojo/versales y `#buscador-input` que crece (`flex: 1`); el foco engorda el borde a 2 px y compensa el padding (`9px 13px`) para que el input **no salte** de tamaño al enfocar — detalle clásico anti-layout-shift.
 - **Grilla**: `.grilla-herramientas` con `display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr))`. El porqué del `min()`: el mínimo de columna es 400 px **o** el 100% del ancho si la pantalla es más chica (móvil), evitando overflow horizontal; `auto-fit` acomoda tantas columnas como quepan.
@@ -857,7 +990,7 @@ Es la hoja **principal**: layout general (header, sidebar, footer), buscador, gr
 - **Botón flotante de QR**: `.btn-escanear-qr` fijo abajo a la derecha (`z-index: 800`), pill borgoña/rojo, con safe-area; en `min-width: 901px` se corre a la izquierda del sidebar (`right: calc(var(--ancho-sidebar-salida) + 20px)`) para no taparlo. Lo crea `escaneo-carrito.js` solo en móvil.
 - **Modales** (`.modal-overlay`, `.modal-caja`, `.modal-titulo`, `.modal-texto`, `.modal-cerrar`, `body.modal-abierto`): overlay oscuro a pantalla completa `z-index: 2000` con transición de opacidad/visibilidad y `visibility` retardada 0.35 s al cerrar (para que la animación se vea); la caja entra con `translateY(14px) → 0`; `body.modal-abierto { overflow: hidden }` bloquea el scroll de fondo. Incluye estilos para una eventual sección de tags (`.modal-tags-*`) y ocultamiento de scrollbars en la caja.
 - **`.volver` + `.btn-link`**: el enlace-botón pill que va de index a gestionar y vuelta.
-- **Footer**: degradado inverso al header, márgenes; `.soporte` blanco que pasa a borgoña en hover.
+- **Footer**: degradado inverso al header, `text-align: center` (las letras se centran dentro del ancho restante) y `margin-top: 100px`; `.soporte` blanco que pasa a borgoña en hover.
 - **`button` genérico**: estilo base de todos los botones (negro, borde blanco, pill, redondeado) — los botones específicos lo refinan con sus clases. Orden de cascada importante: las clases pisan este base.
 - **`@media (prefers-reduced-motion: reduce)`**: reduce animaciones/transiciones a 0.01 ms globalmente.
 
@@ -879,7 +1012,7 @@ Estiliza toda la **operación de préstamos**: el sidebar "Registrar salida" (`i
 - **Notas**: `.notas-texto` (`min-height: 130px`, `resize: vertical` — el usuario decide agrandarlo, pero nunca achicarlo a algo inusable) y `.notas-estado` en tamaño chico con opacidad.
 - **Encargos pendientes**: `ul` sin bullets con `max-height: 260px` y scroll propio (la lista no estira el sidebar infinitamente cuando hay muchos préstamos); `.encargo-pendiente` en borgoña muy oscuro `#1a0000`; `.encargo-profesor` en negrita blanca y `.encargo-herramientas` gris chico (dos niveles de información).
 - **`.btn-devuelto`**: botón blanco/negro de acción (contraste con el resto de la UI roja: "devolver" no es una acción destructiva); reutilizado como botón "Borrar" en gestionar con clase extra de confirmación (ver 5.5).
-- **`.sidebar-salida`**: `position: fixed` a la derecha, ancho `var(--ancho-sidebar-salida)`, borde izquierdo rojo, `overflow-y: auto`, `z-index: 500`; scrollbar oculta (`scrollbar-width: none` + `::-webkit-scrollbar { display: none }`) para estética móvil. En **`max-width: 900px`** se desfija: pasa a flujo normal (`position: static`), ancho completo, borde superior — en celular el sidebar es una sección más debajo de la grilla (y por eso en móvil el botón flotante QR puede quedar abajo a la derecha sin taparlo, no hay sidebar fijo).
+- **`.sidebar-salida`**: `position: fixed` a la derecha, ancho `var(--ancho-sidebar-salida)`, borde izquierdo rojo, `overflow-y: auto`, `z-index: 1100` (por encima del header `1000`); scrollbar oculta (`scrollbar-width: none` + `::-webkit-scrollbar { display: none }`) para estética móvil. El pseudo-elemento `.sidebar-salida::before` (4 px negro a la izquierda, `z-index: -1`) tapa cualquier gap visual de 1 px entre el header y el panel. En **`max-width: 900px`** se desfija: pasa a flujo normal (`position: static`), ancho completo, borde superior — en celular el sidebar es una sección más debajo de la grilla (y por eso en móvil el botón flotante QR puede quedar abajo a la derecha sin taparlo, no hay sidebar fijo).
 - **Curso compuesto** (`.curso-compuesto`): inputs de 46 px centrados + sufijos `.curso-sufijo` ("mo", "da") en negrita — la composición "7" + "mo" + "2" + "da" que el usuario lee como "7mo 2da".
 - **`@media (prefers-reduced-motion)`**: sin transiciones en los botones.
 
@@ -948,7 +1081,7 @@ Resumen contractual de todos los endpoints de `app.py` (la referencia detallada 
 | `GET /api/herramientas/por-qr/<codigo>` | Sí | código en URL | `200 herramienta` | `401`; `404` QR no registrado |
 | `POST /api/herramientas` | Sí | `{nombre, descripcion, imagen?, cantidad?, es_qr?, qr_codigo?, tags}` | `201 {ok, id}` | `400` validaciones; `401`; `409` QR duplicado |
 | `PUT /api/herramientas/<id>` | Sí | mismo body que POST | `200 {ok, id}` | `400`; `401`; `404` inexistente; `409` QR duplicado o cambio de tipo con préstamos pendientes |
-| `DELETE /api/herramientas/<id>` | Sí | — | `200 {ok}` | `401`; `404`; `409` con historial |
+| `DELETE /api/herramientas/<id>` | Sí | — | `200 {ok}` | `401`; `404` inexistente. El historial se conserva con `herramienta_nombre` + FK `SET NULL`; ya no hay 409 |
 | `POST /api/upload-imagen` | Sí | multipart campo `imagen` | `201 {ok, imagen}` | `400` sin archivo/formato/contenido; `401`; `413` > 5 MB |
 | `GET /api/prestamos?estado=<p|d>` | Sí | query `estado` ∈ {`pendiente`,`devuelto`} | `200 [encargo con lista_herramientas]` | `400` estado inválido; `401` |
 | `POST /api/prestamos` | Sí | `{profesor, alumno, curso, items:[{herramienta_id, cantidad}]}` | `201 {ok, id}` | `400` validaciones/stock/no existe; `401`; `409` carrera de stock |
@@ -988,7 +1121,7 @@ Esta sección conecta todo lo anterior en secuencias concretas (útil para depur
 
 1. La lista "Herramientas afuera" (`GET /api/prestamos?estado=pendiente`) muestra cada encargo con su botón "Devuelto".
 2. Clic → botón deshabilitado ("Devolviendo…") → `POST /api/prestamos/<id>/devolver`.
-3. `devolver_prestamo` bloquea el préstamo, rechaza si ya fue devuelto (409), repone stock (QR → 1; normal → +cantidad), marca `devuelto` + `fecha_entrada`, y agrega filas `ENTRADA` al CSV.
+3. `devolver_prestamo` bloquea el préstamo, rechaza si ya fue devuelto (409), repone stock (QR → 1; normal → +cantidad; si la herramienta ya no existe, no repone nada), marca `devuelto` + `fecha_entrada`, y agrega filas `ENTRADA` al CSV usando el nombre histórico `herramienta_nombre`.
 4. El JS avisa "Encargo devuelto. Stock repuesto." y refresca ambas listas.
 
 ### 9.4. Alta de herramienta con QR desde el celular
@@ -1033,7 +1166,7 @@ Recopilación de **todo** lo que el código hace por seguridad, con su contrapar
 7. **Subida de archivos**: lista blanca de extensiones + mimetype declarado que debe coincidir con la extensión + firma binaria real (*magic bytes*); límite de 5 MB (`MAX_CONTENT_LENGTH` + JSON en 413); nombre de archivo saneado (`secure_filename` + truncado) + UUID; destino fijo en `static/img/` (el cliente no elige carpeta) → path traversal descartado.
 8. **Path traversal por campo `imagen`**: `nombre_imagen_seguro()` normaliza cualquier valor a un nombre simple; el render siempre prefija `staticUrl + "img/"`.
 9. **CSV injection**: `valor_csv_seguro()` prefija `'` a valores que empiezan con `= + - @`.
-10. **Integridad/consistencia**: transacciones con commit/rollback automático; `FOR UPDATE` + `UPDATE` condicional contra carreras de stock; devolución única (409 si ya devuelto); borrado bloqueado si hay historial; UNIQUE de QR a nivel motor.
+10. **Integridad/consistencia**: transacciones con commit/rollback automático; `FOR UPDATE` + `UPDATE` condicional contra carreras de stock; devolución única (409 si ya devuelto); UNIQUE de QR a nivel motor. El borrado de una herramienta **no** se bloquea: el historial se preserva con `prestamo_item.herramienta_nombre` y la FK `ON DELETE SET NULL`; el `DELETE` nunca deja huérfano un encargo ni pierde el nombre que tenía la herramienta al prestarse.
 11. **Infraestructura (README)**: MySQL de producción sin DDL, Gunicorn en localhost, UFW mínimo, `.env` 600, HTTPS Let's Encrypt, backups.
 
 **Controles NO implementados (límites conscientes)**
@@ -1070,7 +1203,8 @@ Recopilación de **todo** lo que el código hace por seguridad, con su contrapar
 
 | Archivo | Rol | Documentado en |
 |---|---|---|
-| `.env.example` | Plantilla de secretos/config (se copia a `.env`, que no se versiona) | 2.6 y 11.1 |
+| `.env.example` | Plantilla de secretos/config (se copia a `.env`) | 2.6 y 11.1 |
+| `.env` | Configuración real con secretos; **en este fork está versionado por error** (ver sección 12). No se reproducen sus valores | 2.6 y 12 |
 | `requirements.txt` | Dependencias Python (5 paquetes) | 2.5 |
 | `/etc/systemd/system/cdhi.service` (en el README) | Unit de producción con `EnvironmentFile=.env` | 2.7 |
 | Directivas Apache del README | Proxy inverso + Alias de `/static` | 2.7 |
@@ -1086,13 +1220,14 @@ Documentar lo ausente evita suposiciones falsas:
 
 - **No hay tests automatizados** (ni pytest, ni archivos `test_*.py`). La verificación es manual: levantarla con `python app.py` y probar los flujos de la sección 9.
 - **No hay Docker** (`Dockerfile`, `docker-compose.yml`): el despliegue documentado es venv + systemd + Apache sobre una máquina con MySQL.
-- **No hay CI/CD**: no hay carpeta `.github/`, ni `Jenkinsfile`, ni scripts de despliegue; actualizar producción es copiar archivos y `systemctl restart cdhi`.
-- **No hay control de versiones inicializado** en este checkout (no hay `.git`): por eso tampoco hay `.gitignore`. Si se versiona, el `.env`, `venv/`, `registros/` y las imágenes subidas deben excluirse (el README ya advierte "Nunca subas .env al repositorio").
+- **No hay CI/CD**: no hay carpeta `.github/`, ni `Jenkinsfile`, ni scripts de despliegue; actualizar producción es copiar archivos (o `git pull`) y `systemctl restart cdhi`.
+- **El repositorio git sí existe** (remote `origin = https://github.com/chiraaL/cdhi`), pero **no hay `.gitignore`**. En el estado actual `.env` está versionado, lo que contradice la advertencia del propio `README.md` ("Nunca subas .env al repositorio") y expone `SECRET_KEY` y la contraseña de MySQL a cualquiera con acceso al repo. Medida urgente recomendada: `git rm --cached .env`, crear `.gitignore` con `.env`, `venv/`, `__pycache__/`, `registros/` y rotar `SECRET_KEY` + contraseña de base. El código y los `.md` no contienen secretos; el `.env` sí.
 - **No hay build de frontend** (npm/webpack/parcel): los `.js` y `.css` se sirven tal cual.
-- **No hay ORM ni migraciones** (SQLAlchemy/Alembic): SQL directo + `init_db.py`; los cambios de esquema futuros requieren SQL manual o ampliar `init_db.py` (que no altera tablas existentes).
+- **No hay ORM ni framework de migraciones** (SQLAlchemy/Alembic): SQL directo + `init_db.py`. La única migración existente es `migrar_prestamo_item()` (idempotente, dentro de `init_db.py`); los cambios de esquema futuros requieren una función equivalente o `ALTER TABLE` manual, y **no** se aplican solos al reiniciar la app.
 - **No hay API de registro de usuarios**: el alta es por terminal (`crear_usuario.py`), decisión de seguridad.
 - **No hay internacionalización**: todo el texto (UI y errores) está en español, hardcodeado.
 - **No hay logs de aplicación estructurados**: se usa el logger de Flask (consola/journald); el único log propio es el CSV diario de movimientos.
+- **No hay tests ni datos de ejemplo**: la base arranca vacía (salvo la fila 1 de `notas`); las herramientas y usuarios se cargan a mano.
 
 ---
 
@@ -1100,18 +1235,19 @@ Documentar lo ausente evita suposiciones falsas:
 
 **Desarrollo (resumen de los 6 pasos del `README.md`)**: venv → `pip install -r requirements.txt` → crear base/usuario MySQL → `.env` → `python init_db.py` + `python crear_usuario.py` → `python app.py` → `http://127.0.0.1:5000` (y desde un celular en la misma red, la IP de la PC, gracias al `host=0.0.0.0`).
 
-**Producción (resumen del despliegue Virtualmin)**:
+**Producción (resumen del despliegue Debian 12 bare-metal)**:
 
-1. Usuario de sistema sin privilegios (`cdhi`), proyecto en `/var/www/cdhi`, venv, `pip install`.
-2. MySQL: base + usuario **solo DML** (`SELECT, INSERT, UPDATE, DELETE`); `init_db.py` corre una vez con un usuario admin.
-3. `.env` de producción con `SESSION_COOKIE_SECURE=1` y `chmod 600`.
-4. `systemd` (`cdhi.service`): Gunicorn 3 workers en `127.0.0.1:5000`, `EnvironmentFile=.env`, `Restart=always`.
-5. Apache: `a2enmod proxy proxy_http`, `ProxyPass` a Gunicorn y `Alias /static` para servir estáticos directo desde disco.
-6. HTTPS Let's Encrypt desde Virtualmin; UFW abre 80/443/ssh y **nunca** 5000.
-7. Backups semanales (cron): `mysqldump` de la base + `tar` de `static/img/` y `registros/`.
-8. Actualizaciones: copiar archivos nuevos (sin tocar `.env`, `static/img/` ni `registros/`) + `systemctl restart cdhi`.
+1. Debian 12 limpio (1 GB RAM / 2 vCPU), usuario de sistema sin privilegios (`cdhi`), proyecto en `/var/www/cdhi`, venv y `pip install -r requirements.txt`.
+2. **Swap de 2 GB** + `vm.swappiness=10`: con 1 GB de RAM, sin swap el OOM Killer puede matar Gunicorn/MariaDB/Apache bajo carga.
+3. MySQL/MariaDB: base + usuario **solo DML** (`SELECT, INSERT, UPDATE, DELETE`); `init_db.py` corre con un usuario con DDL (root o admin temporal) **una vez**, y se revocan esos permisos después.
+4. `.env` de producción con `SESSION_COOKIE_SECURE=1` y `chmod 600`; si se opera por HTTP sin dominio, debe ser `0` o el navegador no enviará la cookie y el login no persistirá.
+5. `systemd` (`cdhi.service`): Gunicorn **2 workers sync** en `127.0.0.1:5000`, `EnvironmentFile=/var/www/cdhi/.env`, `Restart=always` y hardening (`ProtectSystem=strict`, `ReadWritePaths` para `registros/` y `static/img/`).
+6. Apache 2: `a2enmod proxy proxy_http rewrite headers ssl`, `ProxyPass` a Gunicorn, `Alias /static` para servir estáticos directo desde disco y VirtualHost 80/443 con cabeceras de seguridad.
+7. HTTPS con **Certbot** (`certbot --apache -d dominio`); requiere un nombre DNS que resuelva al servidor. Sin dominio, la alternativa operativa es HTTP por IP (con `SESSION_COOKIE_SECURE=0`) o Tailscale; el puerto 5000 nunca se expone.
+8. UFW abre solo 80/443/ssh; backups semanales (cron) con `mysqldump` + `tar` de `static/img/` y `registros/`; `logrotate` para logs de app/Apache.
+9. **Actualizaciones**: copiar/`git pull` del código (sin pisar `.env`, `static/img/` ni `registros/`), ejecutar `python init_db.py` **si el esquema cambió** (es idempotente y conserva datos; en producción puede requerir credenciales DDL) y `systemctl restart cdhi`. Verificar con `systemctl status cdhi` y `journalctl -u cdhi -n 50`.
 
-**Diagnóstico rápido**: 502 → Gunicorn caído; errores de conexión MySQL → `.env`/credenciales (`journalctl -u cdhi`); imágenes que no aparecen → permisos de `static/img`; "página vieja" → caché del navegador (Ctrl+Shift+R).
+**Diagnóstico rápido**: 502 → Gunicorn caído (`systemctl status cdhi`); errores de conexión MySQL → `.env`/credenciales (`journalctl -u cdhi`); login que "no queda logueado" sobre HTTP → `SESSION_COOKIE_SECURE=1` (debe ser `0` sin TLS); imágenes que no aparecen → permisos de `static/img`; "página vieja" → caché del navegador (Ctrl+Shift+R); OOM → `dmesg -T | grep -i oom`, aumentar swap o bajar workers.
 
 ---
 

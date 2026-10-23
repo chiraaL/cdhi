@@ -30,8 +30,12 @@ function quitarDelCarrito(id) {
 }
 
 function refrescarGrilla() {
-    // Actualiza los badges de stock según lo que hay en el carrito.
-    if (typeof cargarHerramientas === "function") cargarHerramientas();
+    // Vuelve a dibujar la grilla con los datos ya cargados,
+    // sin hacer fetch al servidor, para que no parpadee.
+    if (typeof renderGrilla === "function" && typeof filtrarLista === "function") {
+        const $buscador = document.getElementById("buscador-input");
+        renderGrilla(filtrarLista($buscador ? $buscador.value : ""));
+    }
 }
 
 function renderCarrito() {
