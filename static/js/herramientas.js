@@ -105,11 +105,7 @@ function dibujarHerramienta(h, contenedor) {
     btnDescripcion.textContent = "Descripción";
     btnDescripcion.addEventListener("click", () => {
         const texto = h.descripcion || "Sin descripción.";
-        if (typeof mostrarAlerta === "function") {
-            mostrarAlerta(texto, "info");
-        } else {
-            alert(texto);
-        }
+        abrirModalDescripcion(texto);
     });
 
     infoDiv.append(stockBadge, titulo, btnCarrito, btnDescripcion);
@@ -189,6 +185,73 @@ document.getElementById("btn-pagina-siguiente")?.addEventListener("click", () =>
         renderControlesPaginacionMovil();
     }
 });
+
+// ---------------------------------------------------------------------
+// Modal de descripción centrado (bloqueante, hay que cerrar para continuar)
+// ---------------------------------------------------------------------
+let _descModal = null;
+
+function crearModalDescripcion() {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.id = "modal-descripcion";
+
+    const caja = document.createElement("div");
+    caja.className = "modal-caja";
+    caja.style.maxWidth = "560px";
+
+    const btnCerrar = document.createElement("button");
+    btnCerrar.type = "button";
+    btnCerrar.className = "modal-cerrar";
+    btnCerrar.textContent = "×";
+    btnCerrar.setAttribute("aria-label", "Cerrar");
+    btnCerrar.addEventListener("click", cerrarModalDescripcion);
+
+    const titulo = document.createElement("h2");
+    titulo.className = "modal-titulo";
+    titulo.textContent = "Descripción";
+
+    const texto = document.createElement("p");
+    texto.className = "modal-texto";
+    texto.id = "texto-descripcion";
+    texto.style.whiteSpace = "pre-wrap";
+    texto.style.overflowWrap = "break-word";
+    texto.style.lineHeight = "1.6";
+
+    const btnOk = document.createElement("button");
+    btnOk.type = "button";
+    btnOk.textContent = "Cerrar";
+    btnOk.style.marginTop = "20px";
+    btnOk.style.padding = "8px 24px";
+    btnOk.addEventListener("click", cerrarModalDescripcion);
+
+    caja.append(btnCerrar, titulo, texto, btnOk);
+    overlay.appendChild(caja);
+    document.body.appendChild(overlay);
+    _descModal = overlay;
+
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) cerrarModalDescripcion();
+    });
+
+    return overlay;
+}
+
+function abrirModalDescripcion(texto) {
+    if (!_descModal) crearModalDescripcion();
+    document.getElementById("texto-descripcion").textContent = texto;
+    document.body.classList.add("modal-abierto");
+    _descModal.classList.add("visible");
+}
+
+function cerrarModalDescripcion() {
+    if (!_descModal) return;
+    _descModal.classList.remove("visible");
+    document.body.classList.remove("modal-abierto");
+}
+
+window.abrirModalDescripcion = abrirModalDescripcion;
+window.cerrarModalDescripcion = cerrarModalDescripcion;
 
 document.addEventListener("DOMContentLoaded", () => {
     cargarHerramientas();
