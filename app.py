@@ -252,10 +252,11 @@ def escribir_log(tipo, prestamo_id, profesor, alumno, curso, items):
     """
     ahora = datetime.datetime.now()
     ruta = ruta_registro_hoy()
-    archivo_nuevo = not os.path.exists(ruta)
-    with open(ruta, "a", encoding="utf-8-sig", newline="") as f:
+    with open(ruta, "a+", encoding="utf-8", newline="") as f:
+        f.seek(0, os.SEEK_END)
         escritor = csv.writer(f)
-        if archivo_nuevo:
+        if f.tell() == 0:
+            f.write("\ufeff")
             escritor.writerow(LOG_CSV_CABECERA)
         for herramienta_id, nombre, cantidad in items:
             escritor.writerow([
