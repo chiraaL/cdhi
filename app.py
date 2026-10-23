@@ -261,7 +261,7 @@ def escribir_log(tipo, prestamo_id, profesor, alumno, curso, items):
         for herramienta_id, nombre, cantidad in items:
             escritor.writerow([
                 ahora.date().isoformat(),
-                ahora.strftime("%H:%M:%S"),
+                ahora.strftime("%H:%M"),
                 tipo,
                 prestamo_id,
                 valor_csv_seguro(profesor),
