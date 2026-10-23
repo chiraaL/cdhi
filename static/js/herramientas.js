@@ -218,14 +218,7 @@ function crearModalDescripcion() {
     texto.style.overflowWrap = "break-word";
     texto.style.lineHeight = "1.6";
 
-    const btnOk = document.createElement("button");
-    btnOk.type = "button";
-    btnOk.textContent = "Cerrar";
-    btnOk.style.marginTop = "20px";
-    btnOk.style.padding = "8px 24px";
-    btnOk.addEventListener("click", cerrarModalDescripcion);
-
-    caja.append(btnCerrar, titulo, texto, btnOk);
+    caja.append(btnCerrar, titulo, texto);
     overlay.appendChild(caja);
     document.body.appendChild(overlay);
     _descModal = overlay;
