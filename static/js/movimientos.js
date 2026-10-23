@@ -77,9 +77,29 @@ function renderCarrito() {
             btnMas.type = "button";
             btnMas.textContent = "+";
             btnMas.title = "Agregar una unidad";
+
+            // Deshabilitar el "+" si ya se llegó al stock disponible.
+            const herramientaEnCache = herramientasCache.find((h) => h.id === item.id);
+            const stockDisponible = herramientaEnCache ? herramientaEnCache.cantidad : 0;
+            if (item.es_qr || item.cantidad >= stockDisponible) {
+                btnMas.disabled = true;
+            }
+
             btnMas.addEventListener("click", () => {
                 // Objeto único (QR): no se puede llevar más de 1.
-                if (!item.es_qr) item.cantidad += 1;
+                if (item.es_qr) return;
+
+                const h = herramientasCache.find((t) => t.id === item.id);
+                const max = h ? h.cantidad : 0;
+
+                if (item.cantidad >= max) {
+                    if (typeof mostrarAlerta === "function") {
+                        mostrarAlerta(`No hay más stock de ${item.nombre}.`, "error");
+                    }
+                    return;
+                }
+
+                item.cantidad += 1;
                 renderCarrito();
             });
 

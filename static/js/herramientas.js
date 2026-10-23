@@ -99,7 +99,20 @@ function dibujarHerramienta(h, contenedor) {
         }
     });
 
-    infoDiv.append(stockBadge, titulo, btnCarrito);
+    const btnDescripcion = document.createElement("button");
+    btnDescripcion.type = "button";
+    btnDescripcion.className = "btn-descripcion";
+    btnDescripcion.textContent = "Descripción";
+    btnDescripcion.addEventListener("click", () => {
+        const texto = h.descripcion || "Sin descripción.";
+        if (typeof mostrarAlerta === "function") {
+            mostrarAlerta(texto, "info");
+        } else {
+            alert(texto);
+        }
+    });
+
+    infoDiv.append(stockBadge, titulo, btnCarrito, btnDescripcion);
     contenido.append(imgTag, infoDiv);
     contenedor.appendChild(contenido);
 }
