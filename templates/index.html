@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {# =====================================================================
-   index.html — Pantalla principal: inventario, buscador, carrito,
-   registro de salida, encargos pendientes, notas y log de hoy.
+   index.html — Pantalla principal: inventario, inventario paginado,
+   buscador, carrito, registro de salida, encargos pendientes, notas.
    ===================================================================== #}
 
 {% block title %}C.D.H.I{% endblock %}
@@ -47,6 +47,45 @@
 
     <div class="grilla-herramientas"></div>
 
+    <!-- Paginación (solo PC) -->
+    <div id="paginacion-herramientas" class="paginacion-herramientas">
+        <button type="button" id="btn-pagina-anterior">← Anterior</button>
+        <span id="info-pagina">Página <span id="num-pagina-actual">1</span> de <span id="num-paginas">1</span></span>
+        <button type="button" id="btn-pagina-siguiente">Siguiente →</button>
+    </div>
+
+    <!-- Botón flotante móvil: abrir registro de salida (en vez de scroll hacia abajo) -->
+    <button type="button" id="btn-abrir-salida-movil" class="btn-salida-movil">📋 Registro de salida</button>
+
+    <!-- Modal móvil: formulario de registro de salida -->
+    <div id="modal-salida-movil" class="modal-overlay">
+        <div class="modal-caja" style="max-width:92vw; max-height:85vh;">
+            <button type="button" class="modal-cerrar" id="btn-cerrar-salida-movil">×</button>
+            <h2 class="modal-titulo">Registro de salida</h2>
+            <div id="carrito-seleccion-movil" class="carrito-seleccion"></div>
+            <div class="form-movimiento">
+                <label for="profesor-movil">Profesor (o persona que retira)</label>
+                <input type="text" id="profesor-movil" placeholder="Nombre y apellido">
+
+                <label for="alumno-movil">Alumno *</label>
+                <input type="text" id="alumno-movil" placeholder="Nombre y apellido" required>
+
+                <label for="curso-movil">Curso *</label>
+                <div class="curso-compuesto">
+                    <input type="text" id="curso-anio-movil" inputmode="numeric" maxlength="1" placeholder="7" required>
+                    <span class="curso-sufijo">mo</span>
+                    <input type="text" id="curso-division-movil" inputmode="numeric" maxlength="1" placeholder="2" required>
+                    <span class="curso-sufijo">da</span>
+                </div>
+
+                <div class="botones-movimiento">
+                    <button type="button" id="btn-salida-movil">Registrar salida</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar de salida (visible en PC; en móvil se usa el modal flotante) -->
     <aside class="sidebar-salida" id="sidebar-salida">
         <h2>Registrar salida</h2>
         <div class="carrito-seleccion" id="carrito-seleccion">

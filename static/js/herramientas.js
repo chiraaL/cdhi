@@ -7,6 +7,11 @@
 
 let herramientasCache = [];
 
+// Paginación (solo PC). En móvil se muestran todas las herramientas.
+let paginaActual = 1;
+const itemsPorPagina = 6;
+let listaFiltradaActual = [];
+
 async function cargarHerramientas() {
     const contenedor = document.querySelector(".grilla-herramientas");
     if (!contenedor) return;
@@ -57,17 +62,52 @@ function textoStockBadge(herramienta, stockVisible) {
 }
 
 function renderGrilla(lista) {
+    // En móvil no se paginan: se muestran todas.
+    if (typeof esMovil === "function" && esMovil()) {
+        paginaActual = 1;
+        listaFiltradaActual = lista;
+        const contenedor = document.querySelector(".grilla-herramientas");
+        if (!contenedor) return;
+        contenedor.innerHTML = "";
+        if (lista.length === 0) {
+            contenedor.innerHTML = '<p class="sin-resultados">No se encontraron herramientas.</p>';
+            return;
+        }
+        dibujarItems(lista);
+        const controles = document.getElementById("paginacion-herramientas");
+        if (controles) controles.style.display = "none";
+        return;
+    }
+
+    // PC: paginar de 6 en 6.
+    paginaActual = 1;
+    listaFiltradaActual = lista;
+    renderPagina(1);
+    renderControlesPaginacion();
+}
+
+function renderPagina(pagina) {
     const contenedor = document.querySelector(".grilla-herramientas");
     if (!contenedor) return;
-
     contenedor.innerHTML = "";
 
-    if (lista.length === 0) {
+    const inicio = (pagina - 1) * itemsPorPagina;
+    const fin = inicio + itemsPorPagina;
+    const itemsPagina = listaFiltradaActual.slice(inicio, fin);
+
+    if (itemsPagina.length === 0) {
         contenedor.innerHTML = '<p class="sin-resultados">No se encontraron herramientas.</p>';
         return;
     }
 
-    lista.forEach((h) => {
+    dibujarItems(itemsPagina);
+}
+
+function dibujarItems(items) {
+    const contenedor = document.querySelector(".grilla-herramientas");
+    if (!contenedor) return;
+
+    items.forEach((h) => {
         const contenido = document.createElement("div");
         contenido.className = "contenido";
         contenido.dataset.id = h.id;
@@ -111,11 +151,44 @@ function renderGrilla(lista) {
     });
 }
 
+function renderControlesPaginacion() {
+    const contenedor = document.getElementById("paginacion-herramientas");
+    if (!contenedor) return;
+
+    const total = Math.ceil(listaFiltradaActual.length / itemsPorPagina) || 1;
+    if (total <= 1) {
+        contenedor.style.display = "none";
+        return;
+    }
+
+    contenedor.style.display = "flex";
+    document.getElementById("num-pagina-actual").textContent = paginaActual;
+    document.getElementById("num-paginas").textContent = total;
+    document.getElementById("btn-pagina-anterior").disabled = paginaActual === 1;
+    document.getElementById("btn-pagina-siguiente").disabled = paginaActual === total;
+}
+
+document.getElementById("btn-pagina-anterior")?.addEventListener("click", () => {
+    if (paginaActual > 1) {
+        paginaActual--;
+        renderPagina(paginaActual);
+        renderControlesPaginacion();
+    }
+});
+
+document.getElementById("btn-pagina-siguiente")?.addEventListener("click", () => {
+    const total = Math.ceil(listaFiltradaActual.length / itemsPorPagina) || 1;
+    if (paginaActual < total) {
+        paginaActual++;
+        renderPagina(paginaActual);
+        renderControlesPaginacion();
+    }
+});
+
 document.addEventListener("DOMContentLoaded", () => {
     cargarHerramientas();
 
-    // El buscador filtra en vivo mientras se escribe (antes
-    // solo filtraba al cargar la página: no respondía al tipeo).
+    // El buscador filtra en vivo mientras se escribe.
     const $buscador = document.getElementById("buscador-input");
     if ($buscador) {
         $buscador.addEventListener("input", () => {

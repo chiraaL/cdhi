@@ -175,6 +175,19 @@ model-viewer {
         padding: 15px;
         max-width: none;
     }
+
+    .buscador nav {
+        justify-content: flex-start;
+        text-align: left;
+    }
+
+    .buscador nav p {
+        text-align: left;
+    }
+
+    #buscador-input {
+        text-align: left;
+    }
 }
 
 .buscador nav {
@@ -230,8 +243,26 @@ model-viewer {
 
 @media (max-width: 600px) {
     .grilla-herramientas {
-        padding: 0 15px;
-        gap: 15px;
+        padding: 0 12px;
+        gap: 12px;
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .grilla-herramientas {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .contenido {
+        max-width: 100%;
+        padding: 3%;
+    }
+
+    .FT-HRM {
+        width: 120px;
+        height: 120px;
+        margin: 8px auto 0;
     }
 }
 
@@ -312,6 +343,41 @@ model-viewer {
 @media (min-width: 901px) {
     .btn-escanear-qr {
         right: calc(var(--ancho-sidebar-salida) + 20px);
+    }
+
+    /* Paginación visible solo en PC */
+    .paginacion-herramientas {
+        display: flex;
+    }
+
+    /* Botón flotante salida oculto en PC */
+    .btn-salida-movil {
+        display: none;
+    }
+
+    /* Sidebar visible en PC */
+    #sidebar-salida {
+        display: block;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Paginación oculta en móvil */
+    .paginacion-herramientas {
+        display: none;
+    }
+
+    /* Botón flotante salida visible en móvil */
+    .btn-salida-movil {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    /* Sidebar oculto en móvil (se usa el modal flotante) */
+    #sidebar-salida {
+        display: none;
     }
 }
 
@@ -531,6 +597,63 @@ body.modal-abierto {
 
 .carrito {
     margin: auto;
+}
+
+/* ---------------------------------------------------------------------
+   PAGINACIÓN (solo PC)
+   --------------------------------------------------------------------- */
+.paginacion-herramientas {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 10px 0 20px;
+    font-family: 'Arial', sans-serif;
+    font-size: 15px;
+    color: #ffffff;
+}
+
+.paginacion-herramientas button {
+    background-color: #830000;
+    border: 2px solid #ff0000;
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.paginacion-herramientas button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.paginacion-herramientas #info-pagina {
+    font-weight: bold;
+}
+
+/* ---------------------------------------------------------------------
+   BOTÓN FLOTANTE MÓVIL: REGISTRO DE SALIDA
+   --------------------------------------------------------------------- */
+.btn-salida-movil {
+    position: fixed;
+    bottom: max(80px, env(safe-area-inset-bottom));
+    right: max(20px, env(safe-area-inset-right));
+    z-index: 900;
+    background-color: #830000;
+    border: 2px solid #ff0000;
+    border-radius: 30px;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 14px 20px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    display: none; /* solo se muestra en móvil vía media query */
+}
+
+.btn-salida-movil:hover {
+    opacity: 0.85;
 }
 
 /* ---------------------------------------------------------------------
