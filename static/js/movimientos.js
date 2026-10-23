@@ -21,17 +21,25 @@ function agregarAlCarrito(id, nombre, es_qr) {
         carrito.push({ id, nombre, cantidad: 1, es_qr: !!es_qr });
     }
     renderCarrito();
-    renderCarritoEn("carrito-seleccion-movil");
 }
+window.agregarAlCarrito = agregarAlCarrito;
 
 function quitarDelCarrito(id) {
-    carrito = carrito.filter((item) => item.id === id);
+    carrito = carrito.filter((item) => item.id !== id);
     renderCarrito();
-    renderCarritoEn("carrito-seleccion-movil");
 }
 
-function renderCarritoEn(idContenedor) {
-    const contenedor = document.getElementById(idContenedor);
+function refrescarGrilla() {
+    // Vuelve a dibujar la grilla con los datos ya cargados,
+    // sin hacer fetch al servidor, para que no parpadee.
+    if (typeof renderGrilla === "function" && typeof filtrarLista === "function") {
+        const $buscador = document.getElementById("buscador-input");
+        renderGrilla(filtrarLista($buscador ? $buscador.value : ""));
+    }
+}
+
+function renderCarrito() {
+    const contenedor = document.getElementById("carrito-seleccion");
     if (!contenedor) return;
 
     if (carrito.length === 0) {
@@ -42,6 +50,8 @@ function renderCarritoEn(idContenedor) {
             const fila = document.createElement("div");
             fila.className = "carrito-item";
 
+            // Todo por textContent: el nombre viene de la base
+            // y no debe interpretarse como HTML (XSS).
             const nombre = document.createElement("span");
             nombre.className = "carrito-item-nombre";
             nombre.textContent = `${item.nombre} (x${item.cantidad})`;
@@ -56,10 +66,7 @@ function renderCarritoEn(idContenedor) {
             btnMenos.addEventListener("click", () => {
                 item.cantidad -= 1;
                 if (item.cantidad <= 0) quitarDelCarrito(item.id);
-                else {
-                    renderCarrito();
-                    renderCarritoEn("carrito-seleccion-movil");
-                }
+                else renderCarrito();
             });
 
             const cantidad = document.createElement("span");
@@ -70,29 +77,10 @@ function renderCarritoEn(idContenedor) {
             btnMas.type = "button";
             btnMas.textContent = "+";
             btnMas.title = "Agregar una unidad";
-
-            const herramientaEnCache = herramientasCache.find((h) => h.id === item.id);
-            const stockDisponible = herramientaEnCache ? herramientaEnCache.cantidad : 0;
-            if (item.es_qr || item.cantidad >= stockDisponible) {
-                btnMas.disabled = true;
-            }
-
             btnMas.addEventListener("click", () => {
-                if (item.es_qr) return;
-
-                const h = herramientasCache.find((t) => t.id === item.id);
-                const max = h ? h.cantidad : 0;
-
-                if (item.cantidad >= max) {
-                    if (typeof mostrarAlerta === "function") {
-                        mostrarAlerta(`No hay más stock de ${item.nombre}.`, "error");
-                    }
-                    return;
-                }
-
-                item.cantidad += 1;
+                // Objeto único (QR): no se puede llevar más de 1.
+                if (!item.es_qr) item.cantidad += 1;
                 renderCarrito();
-                renderCarritoEn("carrito-seleccion-movil");
             });
 
             const btnQuitar = document.createElement("button");
@@ -107,96 +95,8 @@ function renderCarritoEn(idContenedor) {
             contenedor.appendChild(fila);
         });
     }
-}
 
-function renderCarrito() {
-    renderCarritoEn("carrito-seleccion");
-}
-
-function refrescarGrilla() {
-    // Vuelve a dibujar la grilla con los datos ya cargados,
-    // sin hacer fetch al servidor, para que no parpadee.
-    if (typeof renderGrilla === "function" && typeof filtrarLista === "function") {
-        const $buscador = document.getElementById("buscador-input");
-        renderGrilla(filtrarLista($buscador ? $buscador.value : ""));
-    }
-}
-
-// ---------------------------------------------------------------------
-// Modal móvil: registro de salida (se abre con botón flotante en celular)
-// ---------------------------------------------------------------------
-
-let modalSalidaMovilAbierto = false;
-
-function abrirModalSalidaMovil() {
-    const overlay = document.getElementById("modal-salida-movil");
-    if (!overlay) return;
-    document.body.classList.add("modal-abierto");
-    overlay.classList.add("visible");
-    modalSalidaMovilAbierto = true;
-    renderCarritoEn("carrito-seleccion-movil");
-}
-
-function cerrarModalSalidaMovil() {
-    const overlay = document.getElementById("modal-salida-movil");
-    if (!overlay) return;
-    overlay.classList.remove("visible");
-    document.body.classList.remove("modal-abierto");
-    modalSalidaMovilAbierto = false;
-}
-
-function registrarSalidaDesdeInputs(idProfesor, idAlumno, idAnio, idDivision, idBtn) {
-    const profesor = document.getElementById(idProfesor).value.trim();
-    const alumno = document.getElementById(idAlumno).value.trim();
-    const cursoAnio = document.getElementById(idAnio).value.trim();
-    const cursoDivision = document.getElementById(idDivision).value.trim();
-    const btn = document.getElementById(idBtn);
-
-    if (!alumno || !cursoAnio || !cursoDivision || carrito.length === 0) {
-        if (typeof mostrarAlerta === "function") {
-            mostrarAlerta("Completá los campos requeridos y agregá herramientas.", "error");
-        }
-        return;
-    }
-
-    const curso = `${cursoAnio}mo ${cursoDivision}da`;
-    const items = carrito.map((i) => ({ herramienta_id: i.id, cantidad: i.cantidad }));
-
-    btn.disabled = true;
-    btn.textContent = "Registrando…";
-
-    try {
-        const res = await fetch("/api/prestamos", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({ profesor, alumno, curso, items }),
-        });
-
-        if (res.ok) {
-            carrito = [];
-            renderCarrito();
-            renderCarritoEn("carrito-seleccion-movil");
-            if (typeof mostrarAlerta === "function") {
-                mostrarAlerta("Salida registrada con éxito.", "exito");
-            }
-            cargarEncargosPendientes();
-            if (typeof cargarHerramientas === "function") cargarHerramientas();
-            cerrarModalSalidaMovil();
-        } else {
-            const data = await res.json();
-            if (typeof mostrarAlerta === "function") {
-                mostrarAlerta(data.error || "Error al registrar", "error");
-            }
-        }
-    } catch (e) {
-        if (typeof mostrarAlerta === "function") {
-            mostrarAlerta("No se pudo conectar con el servidor.", "error");
-        }
-    } finally {
-        btn.disabled = false;
-        btn.textContent = "Registrar salida";
-    }
+    refrescarGrilla();
 }
 
 async function registrarSalida() {
@@ -206,9 +106,7 @@ async function registrarSalida() {
     const cursoDivision = document.getElementById("curso-division").value.trim();
 
     if (!alumno || !cursoAnio || !cursoDivision || carrito.length === 0) {
-        if (typeof mostrarAlerta === "function") {
-            mostrarAlerta("Completá los campos requeridos y agregá herramientas.", "error");
-        }
+        mostrarAlerta("Completá los campos requeridos y agregá herramientas.", "error");
         return;
     }
 
@@ -226,22 +124,15 @@ async function registrarSalida() {
         if (res.ok) {
             carrito = [];
             renderCarrito();
-            renderCarritoEn("carrito-seleccion-movil");
-            if (typeof mostrarAlerta === "function") {
-                mostrarAlerta("Salida registrada con éxito.", "exito");
-            }
+            mostrarAlerta("Salida registrada con éxito.", "exito");
             cargarEncargosPendientes();
             if (typeof cargarHerramientas === "function") cargarHerramientas();
         } else {
             const data = await res.json();
-            if (typeof mostrarAlerta === "function") {
-                mostrarAlerta(data.error || "Error al registrar", "error");
-            }
+            mostrarAlerta(data.error || "Error al registrar", "error");
         }
     } catch (e) {
-        if (typeof mostrarAlerta === "function") {
-            mostrarAlerta("No se pudo conectar con el servidor.", "error");
-        }
+        mostrarAlerta("No se pudo conectar con el servidor.", "error");
     }
 }
 
@@ -323,39 +214,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!document.getElementById("sidebar-salida")) return;
 
     cargarEncargosPendientes();
-
-    // PC: botón "Registrar salida" del sidebar.
     const btnSalida = document.getElementById("btn-salida");
     if (btnSalida) btnSalida.addEventListener("click", registrarSalida);
-
-    // Móvil: botón flotante que abre el modal de salida.
-    const btnAbrirSalida = document.getElementById("btn-abrir-salida-movil");
-    const btnCerrarSalida = document.getElementById("btn-cerrar-salida-movil");
-    const btnSalidaMovil = document.getElementById("btn-salida-movil");
-
-    if (btnAbrirSalida) {
-        btnAbrirSalida.addEventListener("click", abrirModalSalidaMovil);
-    }
-    if (btnCerrarSalida) {
-        btnCerrarSalida.addEventListener("click", cerrarModalSalidaMovil);
-    }
-    if (btnSalidaMovil) {
-        btnSalidaMovil.addEventListener("click", () => {
-            registrarSalidaDesdeInputs(
-                "profesor-movil",
-                "alumno-movil",
-                "curso-anio-movil",
-                "curso-division-movil",
-                "btn-salida-movil"
-            );
-        });
-    }
-
-    // Cerrar modal al hacer clic fuera de la caja.
-    const overlayMovil = document.getElementById("modal-salida-movil");
-    if (overlayMovil) {
-        overlayMovil.addEventListener("click", (e) => {
-            if (e.target === overlayMovil) cerrarModalSalidaMovil();
-        });
-    }
 });
